@@ -29,7 +29,7 @@ namespace Camoran.Queue.Broker.Brokers
         public IConsumerMessageBuilder ConsumerMessageBuilder { get; private set; }
         public IProducerMessageBuilder ProducerMessageBuilder { get; private set; }
 
-        protected readonly int defaultQueueCountWithEeachTopic = 200;
+        protected readonly int defaultQueueCountWithEeachTopic = 5;
 
         protected readonly int consumerTimeout = 20;
 

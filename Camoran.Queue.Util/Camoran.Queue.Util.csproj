@@ -32,7 +32,7 @@
   <ItemGroup>
     <Reference Include="Camoran, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\..\自定义框架\Socket框架\Camoran\Camoran\bin\Debug\Camoran.dll</HintPath>
+      <HintPath>..\..\Camoran\Camoran\bin\Debug\Camoran.dll</HintPath>
     </Reference>
     <Reference Include="protobuf-net">
       <HintPath>..\packages\protobuf-net.2.0.0.668\lib\net40\protobuf-net.dll</HintPath>
