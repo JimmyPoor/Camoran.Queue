@@ -5,11 +5,11 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("Camoran.Queue.Util")]
+[assembly: AssemblyTitle("Carmoran.Queue.Util")]
 [assembly: AssemblyDescription("")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]
-[assembly: AssemblyProduct("Camoran.Queue.Util")]
+[assembly: AssemblyProduct("Carmoran.Queue.Util")]
 [assembly: AssemblyCopyright("Copyright ©  2015")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
@@ -20,7 +20,7 @@ using System.Runtime.InteropServices;
 [assembly: ComVisible(false)]
 
 // The following GUID is for the ID of the typelib if this project is exposed to COM
-[assembly: Guid("2d7eb118-793a-4905-93af-2301bc7ea72d")]
+[assembly: Guid("6aaf5846-5694-4ae0-925d-a39dc2ae4e2d")]
 
 // Version information for an assembly consists of the following four values:
 //

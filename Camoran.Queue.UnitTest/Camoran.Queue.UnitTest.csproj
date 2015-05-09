@@ -73,10 +73,6 @@
       <Project>{a9db7994-ff54-4df5-b8f1-020db50a5b86}</Project>
       <Name>Camoran.Queue.Client</Name>
     </ProjectReference>
-    <ProjectReference Include="..\Carmoran.Queue.Util\Camoran.Queue.Util.csproj">
-      <Project>{2616f3db-fb80-442b-870b-9e10603b1290}</Project>
-      <Name>Camoran.Queue.Util</Name>
-    </ProjectReference>
     <ProjectReference Include="..\Comoran.Queue.Core\Camoran.Queue.Core.csproj">
       <Project>{9e2ae489-7819-4841-9017-3496ba71f35c}</Project>
       <Name>Camoran.Queue.Core</Name>
