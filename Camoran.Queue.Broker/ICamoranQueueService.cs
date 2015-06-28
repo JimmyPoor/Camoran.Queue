@@ -11,6 +11,8 @@ namespace Camoran.Queue.Broker
     public interface ICamoranQueueService : IQueueService<MessageQueue>
     {
         IList<MessageQueue> CreateTopicQueuesIfNotExists(string topic, int createQueueCount);
+
+        int FindQueueIndex(int queueCount, int producerIndex);
     }
 
 }

@@ -30,5 +30,12 @@ namespace Camoran.Queue.Broker.Queue
             return queuesWithTopic;
         }
 
+
+
+        public int FindQueueIndex(int queueCount, int producerIndex)
+        {
+            return producerIndex.GetHashCode()
+              % queueCount;
+        }
     }
 }

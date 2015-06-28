@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 
 namespace Camoran.Queue.Broker.Client
 {
+
     public interface ICamoranClientManager
     {
         void RemoveConsumer(CamoranConsumer consumer);
@@ -20,5 +21,9 @@ namespace Camoran.Queue.Broker.Client
         IEnumerable<CamoranConsumer> FindTimeoutConsumers(int timeoutSeconds);
 
         IEnumerable<CamoranProducer> FindTimeoutProducers(int timeoutSeconds);
+
+        CamoranConsumer FindConsumer(string topic, Guid fromQueueId);
+
+        int FindConsumerIndex(int queueCount, int consumerCount, int queueIndex);
     }
 }

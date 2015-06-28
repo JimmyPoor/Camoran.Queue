@@ -31,7 +31,7 @@ namespace Camoran.Queue.Client.Consumer
             return new ConsumerResponse(topic, body, senderId);
         }
 
-        public ConsumerRequest Build()
+        ConsumerRequest IClientMessageBuilder<ConsumerRequest>.Build()
         {
             return new ConsumerRequest();
         }

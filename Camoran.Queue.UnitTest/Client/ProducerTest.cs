@@ -92,6 +92,7 @@ namespace Camoran.Queue.UnitTest.Client
                 var body = Encoding.UTF8.GetBytes("Sender:" + i);
                 var response = producer.SendRequest(new ProducerRequest("topic1", body, producer.ClientId, ProducerRequestType.send));
                 responses.Add(response);
+                Thread.Sleep(100);
             }
 
             Assert.AreEqual(responses.Count, TestConfig.Producer_Send_Count);

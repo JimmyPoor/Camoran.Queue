@@ -1,5 +1,6 @@
 ﻿using Camoran.Queue.Broker.Client;
 using Camoran.Queue.Broker.Listeners;
+using Camoran.Queue.Broker.Message;
 using Camoran.Queue.Broker.Queue;
 using Camoran.Queue.Client;
 using Camoran.Queue.Client.Consumer;
@@ -27,7 +28,11 @@ namespace Camoran.Queue.Broker.Sessions
 
         public ICamoranClientManager ClientManager { get; private set; }
 
+        public ICamoranClientStrategy ClientStrategy { get; private set; }
+
         public ICamoranQueueService QueueService { get; private set; }
+
+        public ICamoranMessageManager MessageManager { get; private set; }
 
 
         public CamoranBrokerSession()
@@ -40,7 +45,9 @@ namespace Camoran.Queue.Broker.Sessions
             PublishedMessages = new ConcurrentDictionary<Guid, IList<QueueMessage>>();
             SessionId = Guid.NewGuid();
             ClientManager = new CamoranClientManager(this);
+            ClientStrategy = new CamoranClientStrategy(this);
             QueueService = new CamoranQueueService(this);
+            MessageManager = new CamoranMessageManager(this);
         }
 
         public IClientListener ConsumerListener { get; private set; }
@@ -98,53 +105,8 @@ namespace Camoran.Queue.Broker.Sessions
             }
         }
 
-        public bool RemovePublishedMessage(Guid consumerId, Guid queueMessageId)
-        {
-            bool queueMessageExists = false;
-            IList<QueueMessage> publishedMessages = this.GetPublishMessagesByConsumerId(consumerId, out queueMessageExists);
-            if (queueMessageExists)
-            {
-                var message = publishedMessages.First(x => x.MessageId == queueMessageId);
-                publishedMessages.Remove(message);
-            }
-            return false;
-        }
-        public void RemovePublishMessagesByConsumers(IEnumerable<CamoranConsumer> removedConsumers)
-        {
-            foreach (var consumer in removedConsumers)
-            {
-                RemovePublishMessagesByConsumer(consumer);
-            }
-        }
 
-        public void RemovePublishMessagesByConsumer(CamoranConsumer consumer)
-        {
-            IList<QueueMessage> messages;
 
-            if (PublishedMessages.ContainsKey(consumer.ClientId))
-            {
-                PublishedMessages.TryRemove(consumer.ClientId, out messages);
-            }
-        }
-
-        public IList<QueueMessage> GetPublishMessagesByConsumerId(Guid consumerId, out bool messageExists)
-        {
-            IList<QueueMessage> queueMessags = null;
-            messageExists = PublishedMessages.TryGetValue(consumerId, out queueMessags);
-            return queueMessags;
-        }
-
-        public IList<QueueMessage> GetPublishMessagesByConsumers(IEnumerable<CamoranConsumer> consumers)
-        {
-            List<QueueMessage> queueMessages = new List<QueueMessage>();
-            bool messageExists = false;
-            foreach (var consumer in consumers)
-            {
-                var messages = this.GetPublishMessagesByConsumerId(consumer.ClientId, out messageExists);
-                if (messageExists)
-                    queueMessages.AddRange(messages);
-            }
-            return queueMessages;
-        }
+     
     }
 }

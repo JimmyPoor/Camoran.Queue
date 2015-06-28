@@ -1,4 +1,5 @@
 ﻿using Camoran.Queue.Broker.Client;
+using Camoran.Queue.Broker.Message;
 using Camoran.Queue.Client;
 using Camoran.Queue.Client.Consumer;
 using Camoran.Queue.Client.Producer;
@@ -17,15 +18,8 @@ namespace Camoran.Queue.Broker.Sessions
         ConcurrentDictionary<string, IList<MessageQueue>> TopicQueues { get; set; }
         ConcurrentDictionary<Guid, IList<QueueMessage>> PublishedMessages { get; set; }
         ICamoranClientManager ClientManager { get; }
+        ICamoranClientStrategy ClientStrategy { get; }
         ICamoranQueueService QueueService { get; }
-        bool RemovePublishedMessage(Guid consumerId, Guid queueMessageId);
-
-        void RemovePublishMessagesByConsumers(IEnumerable<CamoranConsumer> removedConsumers);
-
-        void RemovePublishMessagesByConsumer(CamoranConsumer consumer);
-
-        IList<QueueMessage> GetPublishMessagesByConsumerId(Guid consumerId, out bool messageExists);
-
-        IList<QueueMessage> GetPublishMessagesByConsumers(IEnumerable<CamoranConsumer> consumers);
+        ICamoranMessageManager MessageManager { get; }
     }
 }

@@ -8,7 +8,7 @@ namespace Camoran.Queue.UnitTest
 {
     public static class TestConfig
     {
-        public static string BrokerAddress ="10.197.218.137";
+        public static string BrokerAddress = "127.0.0.1";
 
         public static int ProducerListenerPort = 8081;
 
@@ -16,7 +16,7 @@ namespace Camoran.Queue.UnitTest
 
         public static int Producer_Send_Count =150;
 
-        public static int producerCount = 10000;
+        public static int producerCount = 5;
 
         public static int consumerCount = 8;
     }

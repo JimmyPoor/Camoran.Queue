@@ -31,7 +31,7 @@ namespace Camoran.Queue.Broker.Brokers
 
         protected readonly int defaultQueueCountWithEeachTopic = 5;
 
-        protected readonly int consumerTimeout = 20;
+        protected readonly int consumerTimeout = 20*1000;
 
         private CamoranConsumerListener _consumerListener;
         private CamoranProducerListener _producerListener;
@@ -44,7 +44,8 @@ namespace Camoran.Queue.Broker.Brokers
         public CamoranBrokerMachine()
         {
             _startQueueScedule.SetSceduleWork(1000, (o, e) => StartQueues());
-            _removedConsumersScedule.SetSceduleWork(consumerTimeout * 1000, (o, e) => ConsumerTimeout(consumerTimeout));
+            _removedConsumersScedule.SetSceduleWork(consumerTimeout, (o, e) =>
+                this.Session.ClientStrategy.ConsumerTimeout(consumerTimeout));
             this.ConsumerMessageBuilder = new ConsumerMessageBuilder();
             this.ProducerMessageBuilder = new ProducerMessageBuilder();
             this.MessageStore = new MemoryMessageStore();
@@ -94,13 +95,14 @@ namespace Camoran.Queue.Broker.Brokers
 
         public CamoranBrokerMachine RegistBrokerSession(ICamoranBrokerSession session)
         {
+            if (session == null) throw new ArgumentNullException("session object can't be null or empty");
             this.Session = session;
             return this;
         }
 
-
         public CamoranBrokerMachine InitialClientListener()
         {
+            if (Session == null) throw new NullReferenceException("please regist broker session first");
             _consumerListener = Session.ConsumerListener as CamoranConsumerListener;
             _consumerListener.ReceiveEvents.GetOrAdd(ConsumerRequestType.consume.ToString(), ConsumerConsumeAction());
             _consumerListener.ReceiveEvents.GetOrAdd(ConsumerRequestType.callback.ToString(), ConsumerConsumeCallBackAction());
@@ -109,22 +111,6 @@ namespace Camoran.Queue.Broker.Brokers
             _producerListener = Session.ProducerListener as CamoranProducerListener;
             _producerListener.ReceiveEvents.GetOrAdd(ProducerRequestType.send.ToString(), ProducerSendAction());
             _producerListener.ReceiveEvents.GetOrAdd(ProducerRequestType.disconnect.ToString(), ProducerDisconnectAction());
-            return this;
-        }
-
-        public CamoranBrokerMachine AddConsumerListenerEvent(string eventType, Func<ConsumerRequest, ConsumerResponse> action)
-        {
-            (this.Session.ConsumerListener as CamoranConsumerListener)
-                .ReceiveEvents
-                .TryAdd(eventType, action);
-            return this;
-        }
-
-        public CamoranBrokerMachine AddProducerLisenerEvent(string eventType, Func<ProducerRequest, ProducerResponse> action)
-        {
-            (this.Session.ConsumerListener as CamoranProducerListener)
-                   .ReceiveEvents
-                   .TryAdd(eventType, action);
             return this;
         }
 
@@ -139,115 +125,6 @@ namespace Camoran.Queue.Broker.Brokers
                 }
             }
         }
-
-        protected virtual void ProducerDisconnect(Guid producerid)
-        {
-            var dissConnectProducer = Session.CreateOrGetProducer(producerid);
-            Session.ClientManager.RemoveProducer(dissConnectProducer);
-        }
-
-        protected virtual void ProducerTimeout(int timeoutSeconds)
-        {
-            var timeoutProducers = Session.ClientManager.FindTimeoutProducers(timeoutSeconds);
-            Session.ClientManager.RemoveProducers(timeoutProducers);
-        }
-
-        protected virtual void ConsumerDisconnect(Guid consumerId)
-        {
-            bool messageExists = false;
-            var publishMessages = Session.GetPublishMessagesByConsumerId(consumerId, out messageExists);
-            if (messageExists)
-                this.ReEnqueueMessages(publishMessages);
-
-            var disConnectConsumer = Session.CreateOrGetConsumer(consumerId);
-            Session.RemovePublishMessagesByConsumer(disConnectConsumer);
-            Session.ClientManager.RemoveConsumer(disConnectConsumer);
-        }
-
-        protected virtual void ConsumerTimeout(int timeoutSeconds)
-        {
-            lock (lockObj)
-            {
-                /*check all consumers status if status not wait and out of timeout range then remove this consumer and re-enqueue message */
-                var timeoutConsumers = Session.ClientManager.FindTimeoutConsumers(timeoutSeconds);
-                if (timeoutConsumers == null || timeoutConsumers.Count() <= 0) return;
-                // re-enqueue timeout messages
-                var timeoutMessages = Session.GetPublishMessagesByConsumers(timeoutConsumers);
-                this.ReEnqueueMessages(timeoutMessages);
-                // remove published messages 
-                Session.RemovePublishMessagesByConsumers(timeoutConsumers);
-                Session.ClientManager.RemoveConsumers(timeoutConsumers);
-            }
-        }
-
-        protected void PublishMessage(string topic, QueueMessage message)
-        {
-            var consumer = this.FindConsumer(topic, message.QueueId);
-            if (consumer != null)
-            {
-                consumer.SetClientStatus(ClientStatus.ready);
-                consumer.CurrentQueueMessage = message;
-
-                Session.PublishedMessages.AddOrUpdate(
-                    consumer.ClientId,
-                    new List<QueueMessage> { message },
-                    (key, old) =>
-                    {
-                        old.Add(message);
-                        return old;
-                    });
-            }
-        }
-
-        protected bool SendMessageToQueue(string topic, Guid senderId, QueueMessage message)
-        {
-            IList<CamoranProducer> producers = null;
-            IList<MessageQueue> queues = null;
-            var queuesExits = Session.TopicQueues.TryGetValue(topic, out queues);
-            if (!queuesExits) return false;
-            Session.MappingListBetweenTopicAndProducers.TryGetValue(topic, out producers);
-            int producerIndex = this.GetIndexInList(producers
-                , (producer, id) => producer.ClientId == id
-                , senderId);// find index in producers
-            int queueIndx = this.FindQueueIndex(queues.Count, producerIndex);
-            var queue = queues[queueIndx];
-            queue.Enqueue(message);
-            return true;
-
-        }
-
-        protected virtual int FindConsumerIndex(int queueCount, int consumerCount, int queueIndex)
-        {
-            if (consumerCount == 0) throw new ArgumentOutOfRangeException("consumer count should be more than zero");
-            double consumerIndex = 0;
-            double gap = Math.Ceiling((double)(queueCount / consumerCount));
-            gap = gap == 0 ? 1 : gap;
-            double queueCurrentRnageStartIndex = 0;
-            double queueNextRangeStartIndex = 0;
-            for (int i = 0; i < consumerCount; i++)
-            {
-                queueCurrentRnageStartIndex = (i * gap) % queueCount;
-                queueNextRangeStartIndex = ((i + 1) * gap) % queueCount;
-
-                if (queueIndex >= queueNextRangeStartIndex
-                    && i < consumerCount - 1
-                    && queueIndex <= queueCount - 1) { continue; }
-                else
-                {
-                    consumerIndex = i;
-                    break;
-                }
-            }
-
-            return (int)consumerIndex;
-        }
-
-        protected virtual int FindQueueIndex(int queueCount, int producerIndex)
-        {
-            return producerIndex.GetHashCode()
-                % queueCount;
-        }
-
         protected void StartQueues(string topic, IEnumerable<MessageQueue> topicQueues)
         {
             if (topicQueues.All(x => x.QueueStatus == QueueStatus.wroking)) return;
@@ -262,12 +139,12 @@ namespace Camoran.Queue.Broker.Brokers
                       queue,
                       () =>
                       {
-                          var consumer = this.FindConsumer(topic, queue.QueueId);
+                          var consumer = this.Session.ClientManager.FindConsumer(topic, queue.QueueId);
                           return consumer == null ? false : consumer.Status == ClientStatus.wait;
                       },
                       (queueMessage) =>
                       {
-                          this.PublishMessage(topic, queueMessage);
+                          this.Session.MessageManager.PublishMessage(topic, queueMessage);
                       }
                );
                 }
@@ -318,7 +195,7 @@ namespace Camoran.Queue.Broker.Brokers
             {
                 var consumer = Session.CreateOrGetConsumer(request.SenderId);
                 consumer.SetClientStatus(ClientStatus.wait); // change client status as wait, waiting for pubish ready status.
-                Session.RemovePublishedMessage(consumer.ClientId, request.QueueMessageId); // remove publish message to indicate this message has been consumed
+                Session.MessageManager.RemovePublishedMessage(consumer.ClientId, request.QueueMessageId); // remove publish message to indicate this message has been consumed
                 var response = ConsumerMessageBuilder.BuildConsumerResponseMessage(
                     topic: request.Topic,
                     body: request.Body,
@@ -335,7 +212,7 @@ namespace Camoran.Queue.Broker.Brokers
         {
             Func<ConsumerRequest, ConsumerResponse> disConnectAction = (request) =>
             {
-                this.ConsumerDisconnect(request.SenderId); //consume disconnect action
+                this.Session.ClientStrategy.ConsumerDisconnect(request.SenderId); //consume disconnect action
                 var response = ConsumerMessageBuilder.BuildConsumerResponseMessage(
                   topic: request.Topic,
                   body: request.Body,
@@ -361,7 +238,7 @@ namespace Camoran.Queue.Broker.Brokers
                 producer.StartWorkingDate = DateTime.Now;
 
                 var queueMessage = QueueMessage.Create(request.Header,request.Body);
-                bool sendResult = this.SendMessageToQueue(
+                bool sendResult =Session.MessageManager.TrySendMessage(
                     request.Topic,
                     producer.ClientId,
                     queueMessage
@@ -383,7 +260,7 @@ namespace Camoran.Queue.Broker.Brokers
         {
             Func<ProducerRequest, ProducerResponse> producerDisconnectAction = (request) =>
             {
-                this.ProducerDisconnect(request.SenderId);
+                this.Session.ClientStrategy.ProducerDisconnect(request.SenderId);
                 var response = ProducerMessageBuilder.BuildResponseMessage(
                      topic: request.Topic,
                      body: request.Body,
@@ -401,45 +278,5 @@ namespace Camoran.Queue.Broker.Brokers
             th.Start();
         }
 
-        private void ReEnqueueMessages(IEnumerable<QueueMessage> messages)
-        {
-            var queues = Session.TopicQueues.Values.SelectMany(queue => queue);
-
-            var queueWithMessages =
-                      from q in queues
-                      from m in messages
-                      where q.QueueId == m.QueueId
-                      select new { Queue = q, Message = m };
-
-            foreach (var item in queueWithMessages)
-            {
-                item.Queue.Enqueue(item.Message);
-            }
-        }
-
-        private CamoranConsumer FindConsumer(string topic, Guid fromQueueId)
-        {
-            IList<CamoranConsumer> consumers = null;
-            IList<MessageQueue> queues = null;
-            bool hasConsumers = Session.MappingListBetweenTopicAndConsumers.TryGetValue(topic, out consumers);
-            bool hasQueues = Session.TopicQueues.TryGetValue(topic, out queues);
-
-            if (!hasConsumers || consumers.Count <= 0) return null;
-            if (!hasQueues) throw new ApplicationException("queues should exist!");
-
-            var queueIndex = this.GetIndexInList(
-                  queues,
-                  (queue, id) => queue.QueueId == id,
-                  fromQueueId);
-            var consumerIndex = this.FindConsumerIndex(queues.Count, consumers.Count, queueIndex);
-            var consumer = consumers[consumerIndex];
-
-            return consumer;
-        }
-
-        private int GetIndexInList<T, V>(IList<T> ls, Func<T, V, bool> condiftion, V para)
-        {
-            return ls.ToList().GetFirstIndex(condiftion, para);
-        }
     }
 }
