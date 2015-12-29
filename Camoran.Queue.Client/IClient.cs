@@ -12,11 +12,15 @@ namespace Camoran.Queue.Client
         ClientStatus Status { get; set; }
         DateTime StartWorkingDate { get; set; }
         bool IsTimeout(int timeoutSeconds);
+        void Start();
+        void Stop();
+        void Close();
     }
     public interface IClient<Request, Response> : IClient
     {
         Response SendRequest(Request request);
-
         void ConnectToServer();
+        Func<Request, Response> OnClientFailtoConnect { get; set; }
     }
+
 }

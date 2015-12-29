@@ -1,5 +1,6 @@
 ﻿using Camoran.Queue.Broker.Listeners;
 using Camoran.Queue.Client.Consumer;
+using Camoran.Queue.Util.Serialize;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System;
 using System.Collections.Generic;
@@ -9,6 +10,14 @@ using System.Threading.Tasks;
 
 namespace Camoran.Queue.UnitTest.Broker.LisitenerTest
 {
+    public class CamoranConsumerListener: CamoranClientListener_ByHelios<ConsumerRequest, ConsumerResponse>
+    {
+        public CamoranConsumerListener(string address,int port):base(address,port,new ProtoBufSerializeProcessor(),true)
+        {
+
+        }
+    }
+
     [TestClass]
     public class ConsumerListenerTest
     {
@@ -18,10 +27,13 @@ namespace Camoran.Queue.UnitTest.Broker.LisitenerTest
         ConsumerResponse demoConsumeResponse;
 
         ConsumerRequest registerRequest=null;
+        
         public ConsumerListenerTest()
         {
-            _listener = new CamoranConsumerListener();
-
+            _listener = new CamoranConsumerListener(
+            "",
+                8080
+                );
             demoRegisterResponse = new ConsumerResponse("registTopic",null, Guid.Empty);
             demoConsumeResponse = new ConsumerResponse("consumeTopic",null, Guid.Empty);
 
@@ -30,11 +42,9 @@ namespace Camoran.Queue.UnitTest.Broker.LisitenerTest
         public void BindReceiveEventTest()
         {
             string requestType = ConsumerRequestType.consume.ToString();
-           //_listener.ReceiveEvents.GetOrAdd(ConsumerRequestType.rigister,(req)=>demoRegisterResponse);
             _listener.ReceiveEvents.GetOrAdd(requestType, (req) => demoConsumeResponse);
 
            Assert.AreEqual(_listener.ReceiveEvents.Count,2);
-          // Assert.AreEqual(_listener.ReceiveEvents.Keys.ToArray()[0],ConsumerRequestType.rigister);
            Assert.AreEqual(_listener.ReceiveEvents.Keys.ToArray()[1], ConsumerRequestType.consume);
            Assert.AreEqual(_listener.ReceiveEvents.Values.First().Invoke(registerRequest), demoRegisterResponse);
         }

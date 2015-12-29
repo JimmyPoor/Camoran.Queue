@@ -18,7 +18,7 @@ namespace Camoran.Queue.UnitTest.Client.Consumer
         string topic = "topic1";
         private readonly string _address = TestConfig.BrokerAddress;// ConfigurationManager.AppSettings["BrokerAddress"];
         private readonly int _port = TestConfig.ConsumerListenerPort; //Convert.ToInt32(ConfigurationManager.AppSettings["BorkerPort"]);
-        Guid[] guids = { 
+        Guid[] guids = {
                            Guid.Parse("425831d6-7f30-480c-9296-1ae21c3b3cca"),
                            Guid.Parse("9e6feb22-e07e-4f62-9163-7e30c06446c0"),
                            Guid.Parse("11e9eb8d-6bc5-42ac-b1a8-0f54d3e22152"),
@@ -98,92 +98,105 @@ namespace Camoran.Queue.UnitTest.Client.Consumer
             Assert.IsTrue(responses.Any(x => x.ClientCurrentStatus == ClientStatus.wait));
         }
 
-
         [TestMethod]
         public void Start_Consume_Whole_Action_with_Single_Thread_Same_Consumer_Test()
         {
-            int consumerCount = 1;
+            int consumeCount = 1;
             var body = System.Text.Encoding.UTF8.GetBytes("Hello World");
-
-            bool canStop = false;
             var consumer = CreateConsumer(guids[0])
                 .SubscribeTopic("topic1")
                 .SetMessageBody(body)
                 .RegisteConsumeAction((response) =>
             {
                 var responseBody = System.Text.Encoding.UTF8.GetString(response.Body);
-                Debug.WriteLine(responseBody);
-                consumerCount++;
-                canStop = consumerCount == TestConfig.Producer_Send_Count;
+                var queueMessageBody = System.Text.Encoding.UTF8.GetString(response.QueueMeesageBody);
+                Console.WriteLine(responseBody
+                    + "     "
+                    + consumeCount
+                    + " QueueMessageId:" + response.QueueMessageId
+                    + " QueueMessageBody:" + queueMessageBody
+                    + "From Queue Id:" + response.FromQueueId
+                    + "Consumed by :" + response.SenderId
+                    );
+                //var responseBody = System.Text.Encoding.UTF8.GetString(response.Body);
+                //Console.WriteLine(responseBody + " " + consumerCount);
+                consumeCount++;
+                // canStop = consumerCount == TestConfig.Producer_Send_Count;
             });
-
+            consumer.ConnectToServer();
             consumer.Start();
-            while (true)
-            {
-                if (canStop)
-                {
-                    consumer.Stop();
-                    break;
-                }
-            }
-
-            Assert.AreEqual(consumerCount, TestConfig.Producer_Send_Count);
+            Console.Read();
+         //   Assert.AreEqual(consumerCount, TestConfig.Producer_Send_Count);
         }
 
         private object obj = new object();
         [TestMethod]
         public void Start_Consume_Whole_Action_with_Mulit_Thread_Diff_Consumer_Test()
         {
-            bool canStop = false;
             int consumeCount = 0;
-            List<CamoranConsumer> consumers = new List<CamoranConsumer>();
-            Parallel.For(0, TestConfig.consumerCount, (i) =>
+
+            for (int i = 0; i < TestConfig.consumerCount; i++)
             {
-                i = Interlocked.Increment(ref i);
+                new TaskFactory().StartNew(() =>
+                {
+                    var body = System.Text.Encoding.UTF8.GetBytes("Hello World" + i);
+                    var consumer = CreateConsumer(guids[i--])
+                   .SubscribeTopic("topic1")
+                   .SetMessageBody(body)
+                   .RegisteConsumeAction((response) =>
+                   {
+                           consumeCount++;
+                           // tset  for long job runing whether will block all consumer's thread or not
+                           //if (consumeCount % 2 == 0)
+                           //{
+                           //    Console.WriteLine("!!!!!!!!!!!!!!!!!!!!!!");
+                           //    //some long task here
+                           //    Task.Delay(5000).ContinueWith((t) =>
+                           //    {
+                           //        var responseBody2 = System.Text.Encoding.UTF8.GetString(response.Body);
+                           //        var queueMessageBody2 = System.Text.Encoding.UTF8.GetString(response.QueueMeesageBody);
+                           //        Console.WriteLine(responseBody2
+                           //            + "     "
+                           //            + consumeCount
+                           //            + " QueueMessageId:" + response.QueueMessageId
+                           //            + " QueueMessageBody:" + queueMessageBody2
+                           //            + "From Queue Id:" + response.FromQueueId
+                           //            + "Consumed by :" + response.SenderId
+                           //            );
+                           //        Console.WriteLine("end" + consumeCount);
+                           //    });
+                           //}
+                           //else
+                           //{
+                               var responseBody = System.Text.Encoding.UTF8.GetString(response.Body);
+                               var queueMessageBody = System.Text.Encoding.UTF8.GetString(response.QueueMeesageBody);
+                               Console.WriteLine(responseBody
+                                   + "     "
+                                   + consumeCount
+                                   + " QueueMessageId:" + response.QueueMessageId
+                                   + " QueueMessageBody:" + queueMessageBody
+                                   + "From Queue Id:" + response.FromQueueId
+                                   + "Consumed by :" + response.SenderId
+                                   );
+                           //}
+                         //  consumeCount = Interlocked.Increment(ref consumeCount);
+                       
+                   });
+                    consumer.ConnectToServer();
+                    consumer.Start();
 
-                var body = System.Text.Encoding.UTF8.GetBytes("Hello World" + i);
-                var consumer = CreateConsumer(guids[i--])
-               .SubscribeTopic("topic1")
-               .SetMessageBody(body)
-               .RegisteConsumeAction((response) =>
-               {
-                   var responseBody = System.Text.Encoding.UTF8.GetString(response.Body);
-                   var queueMessageBody = System.Text.Encoding.UTF8.GetString(response.QueueMeesageBody);
-                   Console.WriteLine(responseBody
-                       + "     " +
-                       consumeCount++
-                       + " QueueMessageId:" + response.QueueMessageId
-                       + " QueueMessageBody:" + queueMessageBody
-                       );
-                   consumeCount++;
-                   canStop = consumeCount == TestConfig.Producer_Send_Count;
-               });
-                consumers.Add(consumer);
-                consumer.Start();
+                });
 
-
-            });
-
-            //while (true)
-            //{
-            //    if (canStop)
-            //    {
-            //        foreach (var consumer in consumers)
-            //        {
-            //             consumer.Stop();
-            //        }
-            //        break;
-            //    }
-            //}
+            }
             Console.ReadLine();
             Assert.AreEqual(consumeCount, TestConfig.Producer_Send_Count);
-            //Assert.AreEqual();
         }
 
         public CamoranConsumer CreateConsumer(Guid id)
         {
-            HostConfig config = new HostConfig { Address = _address, Port = _port };
-            var producer = new CamoranConsumer(id, config);
+            ClientConfig config = new ClientConfig { Address = _address, Port = _port };
+            var inner = new Client_byHelios<ConsumerRequest, ConsumerResponse>(id, config);
+            var producer = new CamoranConsumer(id, config, inner);
             return producer;
         }
 

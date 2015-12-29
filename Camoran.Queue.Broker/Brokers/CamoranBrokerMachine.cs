@@ -1,76 +1,73 @@
-﻿using Camoran.Queue.Broker.Client;
-using Camoran.Queue.Broker.Listeners;
-using Camoran.Queue.Broker.Queue;
-using Camoran.Queue.Broker.Sessions;
+﻿using Camoran.Queue.Broker.Sessions;
 using Camoran.Queue.Client;
 using Camoran.Queue.Client.Consumer;
 using Camoran.Queue.Client.Producer;
 using Camoran.Queue.Core.Message;
 using Camoran.Queue.Core.Queue;
-using Camoran.Queue.Core.Store;
-using Camoran.Queue.Util;
 using Camoran.Queue.Util.Extensions;
+using Camoran.Queue.Util.Helper;
+using Camoran.Queue.Util.Serialize;
 using System;
-using System.Collections;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
 
 namespace Camoran.Queue.Broker.Brokers
 {
-    public class CamoranBrokerMachine
+
+    public interface ICamoranBrokerMachine
     {
-        public IQueueMessageStore MessageStore { get; private set; }
-        public ICamoranBrokerSession Session { get; private set; }
-        public MessageQueueProcessor QueueProcessor { get; private set; }
-        public IConsumerMessageBuilder ConsumerMessageBuilder { get; private set; }
-        public IProducerMessageBuilder ProducerMessageBuilder { get; private set; }
+        void Start();
+        void Stop();
+        void Initial();
+        ICamoranBrokerMachine RegistBrokerSession(ICamoranBrokerSession session);
+        ICamoranBrokerMachine InitialClientListener(HostConfig config);
+        //ICamoranBrokerMachine InitialSerializor(ISerializeProcessor serializer);
+        ICamoranBrokerSession Session { get; }
+    }
+    public class CamoranBrokerMachine : ICamoranBrokerMachine
+    {
+        private ICamoranBrokerSession _session;
+        public ICamoranBrokerSession Session
+        {
+            get
+            {
+                if (_session == null) throw new NullReferenceException("session can't be null or empty, you must regist session first");
+                return _session;
+            }
+            private set { _session = value; }
+        }
 
         protected readonly int defaultQueueCountWithEeachTopic = 5;
+        protected readonly int consumerTimeout = 20000;
 
-        protected readonly int consumerTimeout = 20*1000;
-
-        private CamoranConsumerListener _consumerListener;
-        private CamoranProducerListener _producerListener;
         private System.Timers.Timer _startQueueScedule = new System.Timers.Timer();
-        private System.Timers.Timer _removedConsumersScedule = new System.Timers.Timer();
-        private Thread _consumerListenerThread = null;
-        private Thread _producerListenerThread = null;
+        private System.Timers.Timer _removedTimeoutConsumersScedule = new System.Timers.Timer();
         private static object lockObj = new object();
 
         public CamoranBrokerMachine()
         {
-            _startQueueScedule.SetSceduleWork(1000, (o, e) => StartQueues());
-            _removedConsumersScedule.SetSceduleWork(consumerTimeout, (o, e) =>
-                this.Session.ClientStrategy.ConsumerTimeout(consumerTimeout));
-            this.ConsumerMessageBuilder = new ConsumerMessageBuilder();
-            this.ProducerMessageBuilder = new ProducerMessageBuilder();
-            this.MessageStore = new MemoryMessageStore();
+            Initial();
         }
 
+        public void Initial()
+        {
+            _startQueueScedule.SetSceduleWork(1000, (o, e) => StartQueues());
+            _removedTimeoutConsumersScedule.SetSceduleWork(consumerTimeout, (o, e) => this.Session.ClientBehavior.ConsumerTimeout(consumerTimeout));
+        }
 
         public void Start()
         {
             try
             {
                 _startQueueScedule.Start();
-                _removedConsumersScedule.Start();
-                StartClientListener(out _consumerListenerThread, _consumerListener);
-                StartClientListener(out _producerListenerThread, _producerListener);
-                while (true)
-                {
-                    if (!_consumerListenerThread.IsAlive || !_producerListenerThread.IsAlive)
-                    {
-                        break;
-                    }
-                }
+                _removedTimeoutConsumersScedule.Start();
+                Session.ConsumerListener.StartListen();
+                Session.ProducerListener.StartListen();
             }
             catch
             {
-
+                this.Stop();
             }
 
         }
@@ -79,99 +76,67 @@ namespace Camoran.Queue.Broker.Brokers
         {
             _startQueueScedule.Close();
             _startQueueScedule.Dispose();
-            _removedConsumersScedule.Close();
-            _removedConsumersScedule.Dispose();
-            _consumerListener.StopListen();
-            _producerListener.StopListen();
-            _consumerListenerThread.Abort();
-            _producerListenerThread.Abort();
+            _removedTimeoutConsumersScedule.Close();
+            _removedTimeoutConsumersScedule.Dispose();
+            Session.ConsumerListener.StopListen();
+            Session.ProducerListener.StopListen();
         }
 
-        public CamoranBrokerMachine RegistProcessor(MessageQueueProcessor processor)
-        {
-            this.QueueProcessor = processor;
-            return this;
-        }
-
-        public CamoranBrokerMachine RegistBrokerSession(ICamoranBrokerSession session)
+        public ICamoranBrokerMachine RegistBrokerSession(ICamoranBrokerSession session)
         {
             if (session == null) throw new ArgumentNullException("session object can't be null or empty");
             this.Session = session;
             return this;
         }
 
-        public CamoranBrokerMachine InitialClientListener()
+        public ICamoranBrokerMachine InitialClientListener(HostConfig config)
         {
             if (Session == null) throw new NullReferenceException("please regist broker session first");
-            _consumerListener = Session.ConsumerListener as CamoranConsumerListener;
-            _consumerListener.ReceiveEvents.GetOrAdd(ConsumerRequestType.consume.ToString(), ConsumerConsumeAction());
+            if(config==null) throw new NullReferenceException("config can't be null");
+            Session.BindListener(config);
+
+            var _consumerListener = Session.ConsumerListener as IClientListener<ConsumerRequest, ConsumerResponse>;
+            _consumerListener.ReceiveEvents.GetOrAdd(ConsumerRequestType.consume.ToString(), ConsumerConnectAndConsumeAction());
             _consumerListener.ReceiveEvents.GetOrAdd(ConsumerRequestType.callback.ToString(), ConsumerConsumeCallBackAction());
             _consumerListener.ReceiveEvents.GetOrAdd(ConsumerRequestType.disconnect.ToString(), ConsumerDisconnectAction());
 
-            _producerListener = Session.ProducerListener as CamoranProducerListener;
-            _producerListener.ReceiveEvents.GetOrAdd(ProducerRequestType.send.ToString(), ProducerSendAction());
+            var _producerListener = Session.ProducerListener as IClientListener<ProducerRequest, ProducerResponse>;
+            _producerListener.ReceiveEvents.GetOrAdd(ProducerRequestType.send.ToString(), ProducerConnectAndSendAction());
             _producerListener.ReceiveEvents.GetOrAdd(ProducerRequestType.disconnect.ToString(), ProducerDisconnectAction());
             return this;
         }
 
         protected void StartQueues()
         {
-            lock (lockObj)
-            {
-                var queues = Session.TopicQueues.Select(kv => kv);
+            ThreadHelper.TryLock(lockObj, 
+                () => {
+                var queues = Session.QueueService.TopicQueues.Select(kv => kv);
                 foreach (var kv in queues)
                 {
                     this.StartQueues(kv.Key, kv.Value);
                 }
-            }
+            }, null);
         }
-        protected void StartQueues(string topic, IEnumerable<MessageQueue> topicQueues)
-        {
-            if (topicQueues.All(x => x.QueueStatus == QueueStatus.wroking)) return;
-            foreach (var queue in topicQueues)
-            {
-                if (queue.QueueStatus == QueueStatus.stop)
-                {
-                    Thread.Sleep(10);
-                    queue.SetQueueStatus(QueueStatus.wroking);
+    
 
-                    QueueProcessor.ProcessQueueAsync(
-                      queue,
-                      () =>
-                      {
-                          var consumer = this.Session.ClientManager.FindConsumer(topic, queue.QueueId);
-                          return consumer == null ? false : consumer.Status == ClientStatus.wait;
-                      },
-                      (queueMessage) =>
-                      {
-                          this.Session.MessageManager.PublishMessage(topic, queueMessage);
-                      }
-               );
-                }
-
-            }
-        }
-
-        protected Func<ConsumerRequest, ConsumerResponse> ConsumerConsumeAction()
+        protected virtual Func<ConsumerRequest, ConsumerResponse> ConsumerConnectAndConsumeAction()
         {
             Func<ConsumerRequest, ConsumerResponse> consumeAction = (request) =>
             {
-
-                ConsumerResponse response = null;
-                bool canConsume = false;
+                Session.ClientBehavior.ConsumerConnect(request.SenderId);
                 var consumer = Session.CreateOrGetConsumer(request.SenderId);
                 Session.SubscribeConsumer(request.Topic, consumer);
                 this.Session
                     .QueueService
                     .CreateTopicQueuesIfNotExists(request.Topic, defaultQueueCountWithEeachTopic);
 
-                canConsume = consumer.Status == ClientStatus.ready;
+                bool canConsume = consumer.Status == ClientStatus.ready;
                 if (canConsume)
                 {
                     consumer.StartWorkingDate = DateTime.Now;
                     consumer.SetClientStatus(ClientStatus.working);
                 }
-                response = ConsumerMessageBuilder.BuildConsumerResponseMessage(
+                ConsumerResponse response = Session.MessageManager.ConsumerMessageBuilder.BuildConsumerResponseMessage(
                     topic: request.Topic,
                     body: request.Body,
                     senderId: request.SenderId
@@ -182,21 +147,21 @@ namespace Camoran.Queue.Broker.Brokers
                 {
                     response.QueueMessageId = consumingMessage.MessageId;
                     response.QueueMeesageBody = consumingMessage.Body;
+                    response.FromQueueId = consumingMessage.QueueId;
                 }
                 return response;
             };
 
             return consumeAction;
         }
-
-        protected Func<ConsumerRequest, ConsumerResponse> ConsumerConsumeCallBackAction()
+        protected virtual Func<ConsumerRequest, ConsumerResponse> ConsumerConsumeCallBackAction()
         {
             Func<ConsumerRequest, ConsumerResponse> callbackAction = (request) =>
             {
                 var consumer = Session.CreateOrGetConsumer(request.SenderId);
                 consumer.SetClientStatus(ClientStatus.wait); // change client status as wait, waiting for pubish ready status.
                 Session.MessageManager.RemovePublishedMessage(consumer.ClientId, request.QueueMessageId); // remove publish message to indicate this message has been consumed
-                var response = ConsumerMessageBuilder.BuildConsumerResponseMessage(
+                var response = Session.MessageManager.ConsumerMessageBuilder.BuildConsumerResponseMessage(
                     topic: request.Topic,
                     body: request.Body,
                     senderId: request.SenderId
@@ -207,13 +172,12 @@ namespace Camoran.Queue.Broker.Brokers
             };
             return callbackAction;
         }
-
-        protected Func<ConsumerRequest, ConsumerResponse> ConsumerDisconnectAction()
+        protected virtual Func<ConsumerRequest, ConsumerResponse> ConsumerDisconnectAction()
         {
             Func<ConsumerRequest, ConsumerResponse> disConnectAction = (request) =>
             {
-                this.Session.ClientStrategy.ConsumerDisconnect(request.SenderId); //consume disconnect action
-                var response = ConsumerMessageBuilder.BuildConsumerResponseMessage(
+                this.Session.ClientBehavior.ConsumerDisconnect(request.SenderId); //consume disconnect action
+                var response = Session.MessageManager.ConsumerMessageBuilder.BuildConsumerResponseMessage(
                   topic: request.Topic,
                   body: request.Body,
                   senderId: request.SenderId
@@ -224,11 +188,11 @@ namespace Camoran.Queue.Broker.Brokers
 
             return disConnectAction;
         }
-
-        protected Func<ProducerRequest, ProducerResponse> ProducerSendAction()
+        protected virtual Func<ProducerRequest, ProducerResponse> ProducerConnectAndSendAction()
         {
             Func<ProducerRequest, ProducerResponse> producerAction = (request) =>
             {
+                Session.ClientBehavior.ProducerConnect(request.SenderId);
                 var producer = Session.CreateOrGetProducer(request.SenderId);
                 Session.SubscribeProducer(request.Topic, producer);
                 this.Session
@@ -237,14 +201,14 @@ namespace Camoran.Queue.Broker.Brokers
 
                 producer.StartWorkingDate = DateTime.Now;
 
-                var queueMessage = QueueMessage.Create(request.Header,request.Body);
-                bool sendResult =Session.MessageManager.TrySendMessage(
+                var queueMessage = QueueMessage.Create(request.Header, request.Body);
+                bool sendResult = Session.MessageManager.TrySendMessage(
                     request.Topic,
                     producer.ClientId,
                     queueMessage
                     );
-                var storeResult = this.MessageStore.Store(queueMessage);
-                var response = ProducerMessageBuilder.BuildResponseMessage(
+                var storeResult = this.Session.MessageManager.MessageStore.Store(queueMessage); // how about strore failure? log or send message  to producer?
+                var response = Session.MessageManager.ProducerMessageBuilder.BuildResponseMessage(
                     topic: request.Topic,
                     body: request.Body,
                     senderId: request.SenderId
@@ -255,13 +219,12 @@ namespace Camoran.Queue.Broker.Brokers
 
             return producerAction;
         }
-
-        protected Func<ProducerRequest, ProducerResponse> ProducerDisconnectAction()
+        protected virtual Func<ProducerRequest, ProducerResponse> ProducerDisconnectAction()
         {
             Func<ProducerRequest, ProducerResponse> producerDisconnectAction = (request) =>
             {
-                this.Session.ClientStrategy.ProducerDisconnect(request.SenderId);
-                var response = ProducerMessageBuilder.BuildResponseMessage(
+                this.Session.ClientBehavior.ProducerDisconnect(request.SenderId);
+                var response = Session.MessageManager.ProducerMessageBuilder.BuildResponseMessage(
                      topic: request.Topic,
                      body: request.Body,
                      senderId: request.SenderId
@@ -271,12 +234,25 @@ namespace Camoran.Queue.Broker.Brokers
             return producerDisconnectAction;
         }
 
-        private void StartClientListener(out Thread th, IClientListener listener)
+
+        private void StartQueues(string topic, IEnumerable<MessageQueue> topicQueues)
         {
-            th = new Thread(new ThreadStart(listener.StartListen));
-            th.IsBackground = true;
-            th.Start();
+            this.Session.QueueService.StartQueues(
+             topicQueues,
+            (queue) =>
+            {
+                var consumer = this.Session.ConsumerManager.FindConsumerByQueueId(topic, queue.QueueId);
+                return consumer == null ? false : consumer.Status == ClientStatus.wait;
+            },
+            (queueMessage) =>
+            {
+                this.Session.MessageManager.PublishMessage(topic, queueMessage);
+            });
         }
 
+        //public ICamoranBrokerMachine InitialSerializor(ISerializeProcessor serializer)
+        //{
+        //    Session.i
+        //}
     }
 }

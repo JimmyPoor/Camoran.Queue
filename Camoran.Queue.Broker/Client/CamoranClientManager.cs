@@ -13,93 +13,16 @@ using System.Threading.Tasks;
 
 namespace Camoran.Queue.Broker.Client
 {
-    public class CamoranClientManager:ICamoranClientManager
+
+    public class CamoranConsumerManager : ICamoranConsumerManager
     {
-        private ICamoranBrokerSession _session;
-        public CamoranClientManager(ICamoranBrokerSession session)
+        ICamoranBrokerSession _session;
+        public CamoranConsumerManager(ICamoranBrokerSession session)
         {
             this._session = session;
+            MappingListBetweenTopicAndClients = new ConcurrentDictionary<string, IList<CamoranConsumer>>();
         }
-
-        public void RemoveConsumer(CamoranConsumer consumer)
-        {
-            IList<CamoranConsumer> consumers = null;
-            bool exists = _session.MappingListBetweenTopicAndConsumers.TryGetValue(consumer.CurrentTopic, out consumers);
-            if (exists && consumers != null)
-            {
-                consumers.Remove(consumer);
-            }
-        }
-        public void RemoveConsumers(IEnumerable<CamoranConsumer> consumers)
-        {
-            var consumerList = consumers.ToList();
-            for (int i = 0; i < consumerList.Count; i++)
-            {
-                RemoveConsumer(consumerList[i]);
-            }
-        }
-
-        public void RemoveProducer(CamoranProducer producer)
-        {
-            IList<CamoranProducer> producers = null;
-            bool exists = _session.MappingListBetweenTopicAndProducers.TryGetValue(producer.CurrentTopic, out producers);
-            if (exists && producers != null)
-            {
-                producers.Remove(producer);
-            }
-        }
-
-        public void RemoveProducers(IEnumerable<CamoranProducer> producers)
-        {
-            var producerList = producers.ToList();
-            for (int i = 0; i < producerList.Count; i++)
-            {
-                RemoveProducer(producerList[i]);
-            }
-        }
-
-
-        public IEnumerable<CamoranConsumer> FindTimeoutConsumers(int timeoutSeconds)
-        {
-            var timeoutConcumers = this.FindTimeoutClients(timeoutSeconds, _session.MappingListBetweenTopicAndConsumers);
-            return timeoutConcumers;
-        }
-
-        public IEnumerable<CamoranProducer> FindTimeoutProducers(int timeoutSeconds)
-        {
-            var timeoutProducers = this.FindTimeoutClients(timeoutSeconds, _session.MappingListBetweenTopicAndProducers);
-            return timeoutProducers;
-        }
-
-        private IEnumerable<T> FindTimeoutClients<T>(int timeoutSeconds, ConcurrentDictionary<string, IList<T>> source) where T : IClient
-        {
-            var timeoutClients = source
-                .Values
-                .SelectMany(x => x)
-                .Where(x => x.IsTimeout(timeoutSeconds));
-
-            return timeoutClients;
-        }
-
-
-        public CamoranConsumer FindConsumer(string topic, Guid fromQueueId)
-        {
-            IList<CamoranConsumer> consumers = null;
-            IList<Camoran.Queue.Core.Queue.MessageQueue> queues = null;
-            bool hasConsumers = _session.MappingListBetweenTopicAndConsumers.TryGetValue(topic, out consumers);
-            bool hasQueues = _session.TopicQueues.TryGetValue(topic, out queues);
-
-            if (!hasConsumers || consumers.Count <= 0) return null;
-            if (!hasQueues) throw new ApplicationException("queues should exist!");
-
-            var queueIndex = queues.GetIndexInList(
-                  (queue, id) => queue.QueueId == id,
-                  fromQueueId);
-            var consumerIndex = this.FindConsumerIndex(queues.Count, consumers.Count, queueIndex);
-            var consumer = consumers[consumerIndex];
-
-            return consumer;
-        }
+        public ConcurrentDictionary<string, IList<CamoranConsumer>> MappingListBetweenTopicAndClients { get; set; }
 
         public virtual int FindConsumerIndex(int queueCount, int consumerCount, int queueIndex)
         {
@@ -125,6 +48,138 @@ namespace Camoran.Queue.Broker.Client
             }
 
             return (int)consumerIndex;
+        }
+
+        public CamoranConsumer FindConsumerByQueueId(string topic, Guid fromQueueId)
+        {
+            IList<CamoranConsumer> consumers = null;
+            IList<Camoran.Queue.Core.Queue.MessageQueue> queues = null;
+            bool hasConsumers = MappingListBetweenTopicAndClients.TryGetValue(topic, out consumers);
+            bool hasQueues = _session.QueueService.TopicQueues.TryGetValue(topic, out queues);
+
+            if (!hasConsumers || consumers.Count <= 0) return null;
+            if (!hasQueues) throw new ApplicationException("queues should exist!");
+
+            var queueIndex = queues.GetIndexInList(
+                  (queue, id) => queue.QueueId == id,
+                  fromQueueId);
+            var consumerIndex = this.FindConsumerIndex(queues.Count, consumers.Count, queueIndex);
+            var consumer = consumers[consumerIndex];
+
+            return consumer;
+        }
+
+        public IEnumerable<CamoranConsumer> FindTimeoutClient(int timeoutSeconds)
+        {
+            var timeoutClients = MappingListBetweenTopicAndClients
+            .Values
+            .SelectMany(x => x)
+            .Where(x => x.IsTimeout(timeoutSeconds));
+
+            return timeoutClients;
+        }
+
+        public void RemoveClients(IEnumerable<CamoranConsumer> consumers)
+        {
+            var consumerList = consumers.ToList();
+            for (int i = 0; i < consumerList.Count; i++)
+            {
+                RemoveClinet(consumerList[i]);
+            }
+        }
+
+        public void RemoveClinet(CamoranConsumer consumer)
+        {
+            IList<CamoranConsumer> consumers = null;
+            bool exists = MappingListBetweenTopicAndClients.TryGetValue(consumer.CurrentTopic, out consumers);
+            if (exists && consumers != null)
+            {
+                consumers.Remove(consumer);
+            }
+        }
+
+        public CamoranConsumer GetClient(Guid clientId)
+        {
+            var producer = MappingListBetweenTopicAndClients.Values.
+           SelectMany(x => x)
+          .FirstOrDefault(y => y.ClientId == clientId);
+            return producer;
+        }
+
+        public void AddClient(string topic, CamoranConsumer consumer)
+        {
+            var topicConsumerList = this.MappingListBetweenTopicAndClients.GetOrAdd(topic, new List<CamoranConsumer>());
+            if (topicConsumerList.Any(x => x.ClientId == consumer.ClientId))
+            {
+                return;
+            }
+            else
+            {
+                topicConsumerList.Add(consumer);
+            }
+        }
+    }
+
+
+    public class CamoranProducerManager : ICamoranProducerManager
+    {
+        ICamoranBrokerSession _session;
+        public CamoranProducerManager(ICamoranBrokerSession session)
+        {
+            MappingListBetweenTopicAndClients = new ConcurrentDictionary<string, IList<CamoranProducer>>();
+            this._session = session;
+        }
+        public ConcurrentDictionary<string, IList<CamoranProducer>> MappingListBetweenTopicAndClients { get; set; }
+
+        public CamoranProducer GetClient(Guid clientId)
+        {
+            var producer = MappingListBetweenTopicAndClients.Values.
+               SelectMany(x => x)
+              .FirstOrDefault(y => y.ClientId == clientId);
+            return producer;
+        }
+
+        public IEnumerable<CamoranProducer> FindTimeoutClient(int timeoutSeconds)
+        {
+            var timeoutClients = MappingListBetweenTopicAndClients
+          .Values
+          .SelectMany(x => x)
+          .Where(x => x.IsTimeout(timeoutSeconds));
+
+            return timeoutClients;
+        }
+
+        public void RemoveClients(IEnumerable<CamoranProducer> producers)
+        {
+            var producerList = producers.ToList();
+            for (int i = 0; i < producerList.Count; i++)
+            {
+                RemoveClinet(producerList[i]);
+            }
+        }
+
+        public void RemoveClinet(CamoranProducer producer)
+        {
+            IList<CamoranProducer> producers = null;
+            if (producer == null || producer.CurrentTopic == null) return;
+            bool exists = MappingListBetweenTopicAndClients.TryGetValue(producer.CurrentTopic, out producers);
+            if (exists && producers != null)
+            {
+                producers.Remove(producer);
+            }
+        }
+
+        public void AddClient(string topic, CamoranProducer producer)
+        {
+            var topicConsumerList = this.MappingListBetweenTopicAndClients.GetOrAdd(topic, new List<CamoranProducer>());
+            if (topicConsumerList.Any(x => x.ClientId == producer.ClientId))
+            {
+                return;
+            }
+            else
+            {
+                topicConsumerList.Add(producer);
+            }
         }
     }
 }

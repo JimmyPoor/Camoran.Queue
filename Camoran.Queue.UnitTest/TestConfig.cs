@@ -14,9 +14,9 @@ namespace Camoran.Queue.UnitTest
 
         public static int ConsumerListenerPort = 8080;
 
-        public static int Producer_Send_Count =150;
+        public static int Producer_Send_Count =100;
 
-        public static int producerCount = 5;
+        public static int producerCount = 10;
 
         public static int consumerCount = 8;
     }

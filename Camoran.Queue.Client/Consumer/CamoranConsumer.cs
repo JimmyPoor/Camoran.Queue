@@ -15,36 +15,40 @@ namespace Camoran.Queue.Client.Consumer
 {
 
 
-    public class CamoranConsumer :
-        Client<ConsumerRequest, ConsumerResponse>
+    public class CamoranConsumer : Client<ConsumerRequest, ConsumerResponse>
     {
         public IConsumerMessageBuilder ConsumeMessageBuilder { get; private set; }
-
         private string _currentTopic;
         private byte[] _currentBody;
         private Action<ConsumerResponse> _consumeTask;
+        IClient<ConsumerRequest, ConsumerResponse> _inner;
 
-        private readonly int _consumeSceduleInterval = 100;
-        private object _lock = new object();
-        private bool _isStart = true;
+        private readonly int _consumeSceduleInterval =100;
+        private object lockobj = new object();
 
         public string CurrentTopic { get { return _currentTopic; } }
         public Camoran.Queue.Core.Message.QueueMessage CurrentQueueMessage { get; set; }
 
-        public CamoranConsumer(Guid clientId, HostConfig config)
+        private System.Timers.Timer _consumerTimer = new System.Timers.Timer();
+        public CamoranConsumer(Guid clientId, ClientConfig config, IClient<ConsumerRequest, ConsumerResponse> inner)
             : base(clientId, config)
         {
             ConsumeMessageBuilder = new ConsumerMessageBuilder();
+            this.SetSceduleWork();
+            this._inner = inner;
+            this._inner.OnClientFailtoConnect = WhenConsumerConnectFail;
         }
+
+
 
         public override void ConnectToServer()
         {
-            SocketClient.ConnectToServer(this.Config.Address, this.Config.Port);
+            _inner.ConnectToServer();
         }
 
         public override ConsumerResponse SendRequest(ConsumerRequest request)
         {
-            return base.SendRequest(request);
+            return _inner.SendRequest(request);
         }
 
         public CamoranConsumer SubscribeTopic(string topic)
@@ -67,44 +71,43 @@ namespace Camoran.Queue.Client.Consumer
 
         public override void Start()
         {
-            this.ConnectToServer();
-            _isStart = true;
-            StartWork();
+            _consumerTimer.Start();
+            _inner.Start();
         }
-
 
         public override void Stop()
         {
-            _isStart = false;
+            _consumerTimer.Stop();
+            _inner.Stop();
         }
 
         public override void Close()
         {
             this.SendConsumerDisconnectRequest();
-            //log success or fail
+            _inner.Close();
         }
 
-        private void StartWork()
+        protected virtual ConsumerResponse WhenConsumerConnectFail(ConsumerRequest request)
         {
-            while (_isStart)
+            // record events for fail to connect to server successfully
+            return null;
+        }
+
+        protected virtual void SetSceduleWork()
+        {
+            _consumerTimer.SetSceduleWork(_consumeSceduleInterval, (o, b) =>
             {
-                Thread.Sleep(_consumeSceduleInterval);
-                var consumeResponse = this.SendConsumeRequest();
-                if (consumeResponse.CanConsume)
+                Util.Helper.ThreadHelper.TryLock(lockobj, () =>
                 {
-                    this._consumeTask.Invoke(consumeResponse);
-                    this.SendConsumerCallbackRequest(consumeResponse.QueueMessageId);
-                    continue;
-                }
-            }
-
-        }
-
-        private ConsumerResponse SendConsumeRequest()
-        {
-            var request = this.CreateRequestByRequestType(ConsumerRequestType.consume);
-            var response = this.SendRequest(request);
-            return response;
+                    var request = this.CreateRequestByRequestType(ConsumerRequestType.consume);
+                    var response = this.SendRequest(request);
+                    if (response != null && response.CanConsume)
+                    {
+                        this._consumeTask.Invoke(response);
+                        this.SendConsumerCallbackRequest(response.QueueMessageId);
+                    }
+                }, null);
+            });
         }
 
         private ConsumerResponse SendConsumerCallbackRequest(Guid queueMessageId)
@@ -131,7 +134,6 @@ namespace Camoran.Queue.Client.Consumer
           .BuildConsumerRequestMessage(_currentTopic, _currentBody, this.ClientId, requestType);
             return consumeRequest;
         }
-
 
     }
 }

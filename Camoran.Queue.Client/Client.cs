@@ -3,6 +3,12 @@ using Camoran.Socket.Client;
 using Camoran.Queue.Util.Extensions;
 using System;
 using System.Threading;
+using Helios.Topology;
+using Helios.Net;
+using Helios.Net.Bootstrap;
+using System.Net;
+using Helios.Exceptions;
+using Camoran.Queue.Util.Helper;
 
 namespace Camoran.Queue.Client
 {
@@ -13,30 +19,26 @@ namespace Camoran.Queue.Client
         public DateTime CreateDate { get; private set; }
         public DateTime StartWorkingDate { get; set; }
         public ISerializeProcessor SP { get; protected set; }
-        public SocketClient SocketClient { get; protected set; }
-        public HostConfig Config { get; set; }
+        public ClientConfig Config { get; set; }
         public ClientStatus Status { get; set; }
 
-   
 
-        private ManualResetEvent are = new ManualResetEvent(false);
-
-
-        private Response responseObj;
         public Guid ClientId
         {
             get;
             protected set;
         }
 
-        public Client(Guid clientId, HostConfig config)
+        public Func<Request, Response> OnClientFailtoConnect { get; set; }
+
+        public Client(Guid clientId, ClientConfig config)
         {
             this.ClientId = clientId;
             this.Config = config;
-            SocketClient = new SocketClient();
             SP = new ProtoBufSerializeProcessor();
             this.CreateDate = DateTime.Now;
         }
+
 
         public abstract void ConnectToServer();
 
@@ -48,45 +50,126 @@ namespace Camoran.Queue.Client
 
         public virtual bool IsTimeout(int timeoutSeconds)
         {
-            return this.Status != ClientStatus.wait
-                && DateTime.Now.AddSeconds(-timeoutSeconds) > this.StartWorkingDate;
+            return
+                //this.Status != ClientStatus.wait &&
+                DateTime.Now.AddSeconds(-timeoutSeconds) > this.StartWorkingDate;
         }
 
-        public virtual Response SendRequest(Request request)
-        {
-            are.Reset();
-            byte[] message = SP.Serialize(request);
-            responseObj = default(Response);
-            SendMessage(SocketClient, message);
-            SocketClient.BeginReceive((response) =>
-            {
-                responseObj = SP.Deserialize<Response>(response);
-                are.Set();
-            });
-            are.WaitOne();
-            return responseObj;
-        }
+        public abstract Response SendRequest(Request request);
+
         public virtual void SetClientStatus(ClientStatus status)
         {
             this.Status = status;
         }
 
+    }
 
-        private void SendMessage<T>(SocketClient sclient, T t)
+
+
+    public class Client_byHelios<Request, Response> : Client<Request, Response>
+        where Request : ClientMessage
+        where Response : ClientMessage
+    {
+        public INode RemoteHost;
+        public IConnection Connection;
+        private ManualResetEvent are = new ManualResetEvent(false);
+        public Client_byHelios(Guid clientId, ClientConfig conifg) 
+            : base(clientId, conifg)
         {
-            if (t == null) throw new ArgumentNullException("Instance of T can't be null");
-            if (t is byte[])
+        }
+        public override void ConnectToServer()
+        {
+            RemoteHost = NodeBuilder.BuildNode()
+            .Host(this.Config.Address)
+            .WithPort(this.Config.Port)
+            .WithTransportType(System.Net.TransportType.Tcp);
+
+            Connection = new ClientBootstrap()
+                .SetTransport(System.Net.TransportType.Tcp)
+                .RemoteAddress(RemoteHost)
+                .OnConnect(ConnectionEstablishedCallback)
+                .OnDisconnect(ConnectionTerminatedCallback)
+                .Build()
+                .NewConnection(RemoteHost);
+
+            Connection.Open();
+        }
+
+        Response _response;
+        public override Response SendRequest(Request request)
+        {
+            if (!ConnectIsOpen())
             {
-                sclient.BeginSend(t as byte[]);
+                 _response = this.OnClientFailtoConnect(request);
             }
-            var type = t.GetType();
-            if (!type.IsComplexType())
+            else
             {
-                byte[] message = System.Text.Encoding.UTF8.GetBytes(t.ToString());
-                sclient.BeginSend(message);
+                are.Reset();
+                EnsureConnectionIsOpen();
+                byte[] buffer = SP.Serialize(request);
+                _response = default(Response);
+                Connection.BeginReceive((data, i) =>
+                {
+                    _response = SP.Deserialize<Response>(data.Buffer);
+                    are.Set();
+                });
+                Connection.Send(new NetworkData
+                {
+                    Buffer = buffer,
+                    Length = buffer.Length,
+                    RemoteHost = RemoteHost
+                });
+                are.WaitOne();
             }
+            return _response;
+        }
+
+        private void ReceivedDataCallback(NetworkData incomingData, IConnection responseChannel)
+        {
+            string.Format("Received {0} bytes from {1}", incomingData.Length,
+                   incomingData.RemoteHost);
+        }
+
+        private void ConnectionEstablishedCallback(INode reason, IConnection closedChannel)
+        {
+            //log
+        }
+
+        private void ConnectionTerminatedCallback(HeliosConnectionException reason, IConnection closedChannel)
+        {
+            //log
+        }
+
+        public override void Start()
+        {
+            this.EnsureConnectionIsOpen();
+        }
+
+        public override void Stop()
+        {
+            if (Connection.IsOpen())
+            {
+                Connection.StopReceive();
+                Connection.Close();
+            }
+        }
+
+        public override void Close()
+        {
+            Connection.Close();
+        }
+
+        private void EnsureConnectionIsOpen()
+        {
+            if (Connection == null || !ConnectIsOpen()) { ConnectToServer(); }
+        }
+
+        private bool ConnectIsOpen()
+        {
+            return Connection.IsOpen();
 
         }
+
 
     }
 }

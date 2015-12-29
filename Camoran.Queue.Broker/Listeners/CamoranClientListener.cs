@@ -1,89 +1,135 @@
 ﻿using Camoran.Handler;
 using Camoran.Queue.Client;
+using Camoran.Queue.Util.Helper;
 using Camoran.Queue.Util.Serialize;
 using Camoran.Socket;
 using Camoran.Socket.Server;
+using Helios.Net;
+using Helios.Ops.Executors;
+using Helios.Reactor;
+using Helios.Reactor.Bootstrap;
+using Helios.Topology;
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Configuration;
+using System.Net;
 using System.Threading;
 
 namespace Camoran.Queue.Broker.Listeners
 {
-
-
-    public class CamoranClientListener<Request, Response> : IClientListener
+    public class CamoranClientListener_ByHelios<Request, Response> : IClientListener<Request, Response>
         where Request : ClientMessage
         where Response : ClientMessage
     {
-        protected SocketServer _clientServer;
-        private string address;
-        private int port;
-        private static object lockobj = new object();
-        public ConcurrentDictionary<string, Func<Request, Response>> ReceiveEvents { get; set; }
+        public ConcurrentDictionary<string, Func<Request, Response>> ReceiveEvents { get; set; } = new ConcurrentDictionary<string, Func<Request, Response>>();
+        Server _heliosServer;
+    
 
-        public CamoranClientListener(string address, int port)
+        public CamoranClientListener_ByHelios(string address, int port, ISerializeProcessor serializor)
+            :this( address,port,serializor,false)
         {
-            this.address = address;
-            this.port = port;
-            ReceiveEvents = new ConcurrentDictionary<string, Func<Request, Response>>();
+
         }
 
-        public virtual void StartListen()
+        public CamoranClientListener_ByHelios(string address, int port, ISerializeProcessor serializor,bool IsIPAddressAny)
         {
-            if (this._clientServer == null) { IntitalServer(); }
-            _clientServer.Run();
-        }
-        public virtual void StopListen()
-        {
-            if (this._clientServer == null) return;
-            _clientServer.Stop();
+            _heliosServer = new Server(address, port, this, serializor, IsIPAddressAny);
+            //new ProtoBufSerializeProcessor());
         }
 
-        private void IntitalServer()
+        public void StartListen()
         {
-
-            _clientServer = new SocketServer()
-                .AddHandler(new ClientReceiveEventHandler(this, new ProtoBufSerializeProcessor()))
-                .BindAddress(address, port);
+            _heliosServer.Start();
         }
 
-        public class ClientReceiveEventHandler : IChannelHandler
+        public void StopListen()
         {
-            CamoranClientListener<Request, Response> _listener;
+            _heliosServer.Stop();
+        }
+
+
+        public class Server
+        {
+            string _address;
+            int _port;
+            IClientListener<Request, Response> _lisenter;
+            IReactor _server;
+            private object lockobj = new object();
             protected ISerializeProcessor SP { get; private set; }
-            public ClientReceiveEventHandler(CamoranClientListener<Request, Response> listener, ISerializeProcessor sp)
+            bool isAnyIPAddress { get; }
+
+            public Server(string address, int port, IClientListener<Request, Response> listener, ISerializeProcessor sp,bool isIPAddressAny)
             {
-                this._listener = listener;
-                SP = sp;
+                this._address = address;
+                this._port = port;
+                this._lisenter = listener;
+                this.SP = sp;
+                this.isAnyIPAddress = isIPAddressAny;
+
+                var excutor = new TryCatchExecutor((e) =>
+                {
+                    Console.Write(e);
+                });
+                var bootStrapper = new ServerBootstrap()
+                    .Executor(excutor)
+                    .SetTransport(System.Net.TransportType.Tcp)
+                    .Build();
+                _server = bootStrapper.NewReactor(
+                 NodeBuilder.BuildNode()
+                 .Host(IPAddress.Any)
+                 .WithPort(port)
+                 );
+
+                _server.OnConnection += _server_OnConnection; ;
+                _server.OnDisconnection += TempServer_OnDisconnection;
             }
 
-            public ChannelHanderType ChannelHandlerType
+            private void _server_OnConnection(INode remoteAddress, IConnection responseChannel)
             {
-                get { return ChannelHanderType.input; }
+                responseChannel.BeginReceive(TempServer_OnReceive);
             }
 
-            public void Handle(IChannelHandlerContext ctx)
+            public void Start()
             {
-                Thread.Sleep(200);
-                Request msg = default(Request);
-                Response response = default(Response);
-
-                var scc = ctx as SocketChannelContext;
-                msg = SP.Deserialize<Request>(scc.Message.buffer);
-
-                Func<Request, Response> clientRequestAction = null;
-                bool hasRequestAction = _listener.ReceiveEvents.TryGetValue(msg.MessageType, out clientRequestAction);
-                if (hasRequestAction)
-                    response = clientRequestAction.Invoke(msg);
-                scc.Message.buffer = SP.Serialize(response); // serialize response message and send it to client 
+                if (!_server.IsActive)
+                    _server.Start();
             }
 
-            public string HandlerName
+            public void Stop()
             {
-                get { return "Client Receive"; }
+                if (_server.IsActive)
+                    _server.Stop();
+            }
+
+            private void TempServer_OnDisconnection(Helios.Exceptions.HeliosConnectionException reason, Helios.Net.IConnection closedChannel)
+            {
+            }
+
+
+            private void TempServer_OnReceive(Helios.Net.NetworkData incomingData, IConnection connection)
+            {
+                ThreadHelper.TryLock(this.lockobj,
+                    () => {
+                            Request msg = default(Request);
+                            Response response = default(Response);
+                            msg = SP.Deserialize<Request>(incomingData.Buffer);
+
+                            Func<Request, Response> clientRequestAction = null;
+                            bool hasRequestAction = this._lisenter.ReceiveEvents.TryGetValue(msg.MessageType, out clientRequestAction);
+                            if (hasRequestAction)
+                                response = clientRequestAction.Invoke(msg);
+                            var sendBuffer = SP.Serialize(response);// serialize response message and send it to client 
+                            connection.Send(new Helios.Net.NetworkData
+                            {
+                                Buffer = sendBuffer,
+                                Length = sendBuffer.Length,
+                                RemoteHost = connection.RemoteHost
+                            });
+                    }, (error) => {
+                       // TempServer_OnReceive(incomingData,connection);
+                    } ); 
             }
         }
     }
-
 }

@@ -20,6 +20,9 @@ namespace Camoran.Queue.Client.Consumer
         public Guid QueueMessageId { get; set; }
         [ProtoMember(13)]
         public byte[] QueueMeesageBody { get; set; }
+
+        [ProtoMember(14)]
+         public Guid FromQueueId { get; set; }
         //[ProtoMember(14)]
         //public int QueueCurrentOffset { get; set; }
 

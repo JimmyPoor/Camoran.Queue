@@ -9,6 +9,7 @@ using Camoran.Queue.Core.Message;
 using Camoran.Queue.Broker.Sessions;
 using Camoran.Queue.Broker.Queue;
 using Camoran.Queue.Util;
+using Camoran.Queue.Broker;
 
 namespace Camoran.Queue.UnitTest.Broker.Machine
 {
@@ -16,15 +17,20 @@ namespace Camoran.Queue.UnitTest.Broker.Machine
     public class CamoranBrokerMachineTest
     {
         CamoranBrokerMachine machine;
-
+        HostConfig config = new HostConfig
+        {
+            ServerWithAnyIPAddress = true,
+            ConsumerPort = 8080,
+            ProducePort=8081,
+        };
         [TestMethod]
         public void InitialMachineTest()
         {
             machine = new CamoranBrokerMachine();
             //Assert.AreNotEqual(machine.MessageStore,null);
-            Assert.AreNotEqual(machine.QueueProcessor, null);
+            Assert.AreNotEqual(machine.Session.QueueService.QueueProcessor, null);
             Assert.AreNotEqual(machine.Session, null);
-            Assert.AreNotEqual(machine.Session.TopicQueues, null);
+            Assert.AreNotEqual(machine.Session.QueueService.TopicQueues, null);
         }
 
         [TestMethod]
@@ -32,8 +38,7 @@ namespace Camoran.Queue.UnitTest.Broker.Machine
         {
             machine = new CamoranBrokerMachine()
             .RegistBrokerSession(new CamoranBrokerSession())
-            .RegistProcessor(new CamoranMQProcessor())
-            .InitialClientListener();
+            .InitialClientListener(config) as CamoranBrokerMachine;
             machine.Start();
         }
         [TestMethod]

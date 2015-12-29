@@ -34,6 +34,10 @@
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\..\Camoran\Camoran\bin\Debug\Camoran.dll</HintPath>
     </Reference>
+    <Reference Include="Helios, Version=1.4.2.0, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>C:\Users\JimmyPoor\Desktop\helios-dev\helios-dev\src\Helios\bin\Debug\Helios.dll</HintPath>
+    </Reference>
     <Reference Include="protobuf-net">
       <HintPath>..\packages\protobuf-net.2.0.0.668\lib\net40\protobuf-net.dll</HintPath>
     </Reference>
@@ -49,16 +53,15 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Brokers\CamoranBroker.cs" />
+    <Compile Include="Bootstrap\CamoranBorkerBootstrap.cs" />
     <Compile Include="Brokers\CamoranBrokerMachine.cs" />
+    <Compile Include="HostConfig.cs" />
     <Compile Include="Client\CamoranClientManager.cs" />
-    <Compile Include="Client\CamoranClientStrategy.cs" />
+    <Compile Include="Client\CamoranClientBehavior.cs" />
     <Compile Include="Client\ICamoranClientManager.cs" />
-    <Compile Include="Client\ICamoranClientStrategy.cs" />
+    <Compile Include="Client\ICamoranClientBehavior.cs" />
     <Compile Include="ICamoranQueueService.cs" />
     <Compile Include="IClientListener.cs" />
-    <Compile Include="Listeners\CamoranConsumerListener.cs" />
-    <Compile Include="Listeners\CamoranProducerListener.cs" />
     <Compile Include="Listeners\CamoranClientListener.cs" />
     <Compile Include="Message\CamoranMessageManager.cs" />
     <Compile Include="Message\ICamoranMessageManager.cs" />

@@ -34,6 +34,7 @@ namespace Camoran.Queue.Client.Consumer
 
     public enum ConsumerRequestType
     {
+        connect,
         consume,
         callback,
         disconnect

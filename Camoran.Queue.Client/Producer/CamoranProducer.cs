@@ -9,28 +9,35 @@ using System.Threading.Tasks;
 
 namespace Camoran.Queue.Client.Producer
 {
-    public class CamoranProducer : Client<ProducerRequest, ProducerResponse>
+    public class CamoranProducer : Client<ProducerRequest, ProducerResponse> 
     {
         public IProducerMessageBuilder ProducerMessageBuilder { get; private set; }
         public string CurrentTopic { get { return _currentTopic; } }
 
         private string _currentTopic;
         private byte[] _currentBody;
-        private int _sendInterval = 500;
+        private int _sendInterval = 1;
         private Action<ProducerResponse> _sendCallback;
         private System.Timers.Timer _producerTimer = new System.Timers.Timer();
 
+        IClient<ProducerRequest, ProducerResponse> _inner;
+
         private object lockObj = new object();
-        public CamoranProducer(Guid clientId, HostConfig config)
-            : base(clientId, config)
+
+        public CamoranProducer(Guid clientId, ClientConfig config, IClient<ProducerRequest, ProducerResponse> inner)
+            :base(clientId,config)
         {
             ProducerMessageBuilder = new ProducerMessageBuilder();
+            this._inner = inner;
+            this._inner.OnClientFailtoConnect=WhenProducerConnectFail;
             SetSceduleWork();
         }
 
+ 
+
         public override ProducerResponse SendRequest(ProducerRequest request)
         {
-            return base.SendRequest(request);
+            return _inner.SendRequest(request);
         }
 
 
@@ -54,42 +61,49 @@ namespace Camoran.Queue.Client.Producer
 
         public override void ConnectToServer()
         {
-            this.SocketClient.ConnectToServer(this.Config.Address, this.Config.Port);
+            _inner.ConnectToServer();
         }
         public override void Start()
         {
-            ConnectToServer();
             this._producerTimer.Start();
-
+            this._inner.Start();
         }
 
         public override void Stop()
         {
             this._producerTimer.Stop();
-
             var disconnectRequest = this.DisConnectRequest();
             this.SendRequest(disconnectRequest);
+            this._inner.Stop();
         }
 
         public override void Close()
         {
-         
             this._producerTimer.Close();
-            //log 
+            this._inner.Close();
         }
 
-
-        private void SetSceduleWork()
+        protected virtual ProducerResponse WhenProducerConnectFail(ProducerRequest request)
+        {
+            //log
+            //var errorMsg =  string.Format( "producer id :{0} can't connect to broker now",request.SenderId);
+            //byte[] errorBytes = Encoding.UTF8.GetBytes(errorMsg);
+            //var response= ProducerMessageBuilder.BuildResponseMessage(request.Topic, errorBytes, request.SenderId);
+            //response.Error = new Core.Message.ErrorMessage { Body= errorBytes };
+            //return response;
+            return null;
+        }
+        protected virtual void SetSceduleWork()
         {
             this._producerTimer.SetSceduleWork(_sendInterval, (e, o) =>
             {
-                lock (lockObj)
+                Util.Helper.ThreadHelper.TryLock(lockObj, () =>
                 {
                     var sendMessageRequest = CreateSendRequest();
                     var response = this.SendRequest(sendMessageRequest);
                     this._sendCallback.Invoke(response);
-                }
-            });
+                }, null);
+            }); 
         }
 
 
@@ -98,10 +112,13 @@ namespace Camoran.Queue.Client.Producer
             return ProducerMessageBuilder.BuildSendRequestMessage(_currentTopic, _currentBody, this.ClientId, ProducerRequestType.send);
         }
 
-        private ProducerRequest DisConnectRequest() 
+        private ProducerRequest DisConnectRequest()
         {
             return ProducerMessageBuilder.BuildSendRequestMessage(_currentTopic, _currentBody, this.ClientId, ProducerRequestType.disconnect);
         }
-
     }
+
+
+
+
 }

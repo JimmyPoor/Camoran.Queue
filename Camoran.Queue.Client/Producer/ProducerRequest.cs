@@ -26,6 +26,7 @@ namespace Camoran.Queue.Client.Producer
 
     public enum ProducerRequestType
     {
+        connect,
         send,
         disconnect,
         //request

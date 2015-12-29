@@ -18,7 +18,6 @@ namespace Camoran.Queue.Client.Consumer
         public virtual ConsumerRequest BuildConsumerRequestMessage(string topic, byte[] body, Guid senderId, ConsumerRequestType requestType)
         {
             if (string.IsNullOrEmpty(topic)) throw new ArgumentNullException("topic null");
-            //if (body == null) throw new ArgumentNullException("body null");
             if (senderId == Guid.Empty) throw new ArgumentException("senderid null");
             return new ConsumerRequest(topic, body, senderId, requestType);
         }
@@ -26,7 +25,6 @@ namespace Camoran.Queue.Client.Consumer
         public virtual ConsumerResponse BuildConsumerResponseMessage(string topic, byte[] body, Guid senderId)
         {
             if (string.IsNullOrEmpty(topic)) throw new ArgumentNullException("topic null");
-           // if (body == null) throw new ArgumentNullException("body null");
             if (senderId == Guid.Empty) throw new ArgumentException("senderid null");
             return new ConsumerResponse(topic, body, senderId);
         }

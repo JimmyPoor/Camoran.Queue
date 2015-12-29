@@ -1,5 +1,6 @@
 ﻿using Camoran.Queue.Broker.Sessions;
 using Camoran.Queue.Core.Message;
+using Camoran.Queue.Util.Helper;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -8,25 +9,35 @@ using System.Threading.Tasks;
 
 namespace Camoran.Queue.Broker.Client
 {
-    public class CamoranClientStrategy : ICamoranClientStrategy
+    public class CamoranClientBehavior : ICamoranClientBehavior
     {
         protected ICamoranBrokerSession Session { get; private set; }
 
-        public CamoranClientStrategy(ICamoranBrokerSession session)
+        public CamoranClientBehavior(ICamoranBrokerSession session)
         {
             this.Session = session;
+        }
+
+        public virtual void ConsumerConnect(Guid consumerId)
+        {
+            Session.CreateOrGetConsumer(consumerId);
+        }
+
+        public virtual void ProducerConnect(Guid producerId)
+        {
+            Session.CreateOrGetProducer(producerId);
         }
 
         public virtual void ProducerDisconnect(Guid producerid)
         {
             var dissConnectProducer = Session.CreateOrGetProducer(producerid);
-            Session.ClientManager.RemoveProducer(dissConnectProducer);
+            Session.ProducerManger.RemoveClinet(dissConnectProducer);
         }
 
         public virtual void ProducerTimeout(int timeoutSeconds)
         {
-            var timeoutProducers = Session.ClientManager.FindTimeoutProducers(timeoutSeconds);
-            Session.ClientManager.RemoveProducers(timeoutProducers);
+            var timeoutProducers = Session.ProducerManger.FindTimeoutClient(timeoutSeconds);
+            Session.ProducerManger.RemoveClients(timeoutProducers);
         }
 
         public virtual void ConsumerDisconnect(Guid consumerId)
@@ -38,28 +49,32 @@ namespace Camoran.Queue.Broker.Client
 
             var disConnectConsumer = Session.CreateOrGetConsumer(consumerId);
             Session.MessageManager.RemovePublishMessagesByConsumerId(disConnectConsumer.ClientId);
-            Session.ClientManager.RemoveConsumer(disConnectConsumer);
+            Session.ConsumerManager.RemoveClinet(disConnectConsumer);
+
+
         }
 
         public virtual void ConsumerTimeout(int timeoutSeconds)
         {
-            lock (this)
-            {
+            ThreadHelper.TryLock(this, () => {
                 /*check all consumers status if status not wait and out of timeout range then remove this consumer and re-enqueue message */
-                var timeoutConsumers = Session.ClientManager.FindTimeoutConsumers(timeoutSeconds);
+                var timeoutConsumers = Session.ConsumerManager.FindTimeoutClient(timeoutSeconds);
                 if (timeoutConsumers == null || timeoutConsumers.Count() <= 0) return;
                 // re-enqueue timeout messages
                 var timeoutMessages = this.GetPublishMessagesByConsumers(timeoutConsumers);
                 this.ReEnqueueMessages(timeoutMessages);
                 // remove published messages 
                 this.RemovePublishMessagesByConsumers(timeoutConsumers);
-                Session.ClientManager.RemoveConsumers(timeoutConsumers);
-            }
+                Session.ConsumerManager.RemoveClients(timeoutConsumers);
+                Console.WriteLine("time out and has comume {0} message", timeoutMessages.Count);
+            }, (error) => {
+
+            });
         }
 
         private void ReEnqueueMessages(IEnumerable<QueueMessage> messages)
         {
-            var queues = Session.TopicQueues.Values.SelectMany(queue => queue);
+            var queues = Session.QueueService.TopicQueues.Values.SelectMany(queue => queue);
 
             var queueWithMessages =
                       from q in queues
@@ -94,6 +109,6 @@ namespace Camoran.Queue.Broker.Client
             }
         }
 
-
+    
     }
 }

@@ -27,10 +27,13 @@ namespace Camoran.Queue.UnitTest.Client
         {
             var producer = CreateProducer();
             producer.ConnectToServer();
+            producer.Start();
             var response = producer.SendRequest(new ProducerRequest(topic + "1", null, producer.ClientId, ProducerRequestType.send));
-            var response2 = producer.SendRequest(new ProducerRequest(topic + "2", null, producer.ClientId, ProducerRequestType.send));
-            Assert.AreEqual(response.Body, null);
-            Assert.AreEqual(response.SendSuccess, true);
+            Console.Read();
+           // var response2 = producer.SendRequest(new ProducerRequest(topic + "2", null, producer.ClientId, ProducerRequestType.send));
+            //Console.Read();
+            //Assert.AreEqual(response.Body, null);
+            //Assert.AreEqual(response.SendSuccess, true);
         }
 
         static object lockobj = new object();
@@ -48,6 +51,7 @@ namespace Camoran.Queue.UnitTest.Client
                 {
                     //var producer = CreateProducer();
                     //producer.ConnectToServer();
+                    Console.WriteLine(i);
                     var body = Encoding.UTF8.GetBytes("Sender:" + i);
                     var response = producer.SendRequest(new ProducerRequest("topic1", body, producer.ClientId, ProducerRequestType.send));
                     responses.Add(response);
@@ -66,15 +70,16 @@ namespace Camoran.Queue.UnitTest.Client
             Parallel.For(0, TestConfig.producerCount, (i) =>
             {
                 i = Interlocked.Increment(ref i);
-                lock (lockobj)
-                {
-                    var producer = CreateProducer();
+            //lock (lockobj)
+            //{
+                var producer = CreateProducer();
                     producer.ConnectToServer();
                     var body = Encoding.UTF8.GetBytes("Sender:" + i);
                     var response = producer.SendRequest(new ProducerRequest("topic1", body, producer.ClientId, ProducerRequestType.send));
                     responses.Add(response);
-                    Thread.Sleep(50);
-                }
+                   Console.WriteLine(i);
+              //      Thread.Sleep(50);
+              // }
             });
         }
 
@@ -95,8 +100,8 @@ namespace Camoran.Queue.UnitTest.Client
                 Thread.Sleep(100);
             }
 
-            Assert.AreEqual(responses.Count, TestConfig.Producer_Send_Count);
-            Assert.IsTrue(responses.All(x => x.SendSuccess));
+          //  Assert.AreEqual(responses.Count, TestConfig.Producer_Send_Count);
+          //  Assert.IsTrue(responses.All(x => x.SendSuccess));
         }
 
         [TestMethod]
@@ -111,17 +116,19 @@ namespace Camoran.Queue.UnitTest.Client
                  .SetBody(Encoding.UTF8.GetBytes(producer.ClientId.ToString()))
                     .BindSendCallBack((response) =>
                     {
-                        Debug.WriteLine(sendCount);
+                        Console.WriteLine(sendCount);
                         responses.Add(response);
                         sendCount++;
-                        isOver = sendCount == TestConfig.Producer_Send_Count;
-                        //if (isOver)
-                        //{
-                        //    producer.Close();
-                        //    producer.Stop();
-                        //    Assert.IsTrue(responses.All(x => x.SendSuccess));
-                        //}
-                    }).Start();
+                        isOver = sendCount >= TestConfig.Producer_Send_Count;
+                        if (isOver)
+                        {
+                           //     producer.Close();
+                               // producer.Stop();
+                            //    Assert.IsTrue(responses.All(x => x.SendSuccess));
+                            return;
+                        }
+                    }).ConnectToServer();
+              producer.Start();
             Console.ReadLine();
         }
 
@@ -129,27 +136,34 @@ namespace Camoran.Queue.UnitTest.Client
         public void Start_Producer_Whole_Action_Mulit_Producers()
         {
             List<ProducerResponse> responses = new List<ProducerResponse>();
+            List<CamoranProducer> producers = new List<CamoranProducer>();
             int sendCount = 0;
             bool isOver = false;
             for (int i = 0; i < TestConfig.producerCount; i++)
             {
                 var producer = CreateProducer();
-                   producer.BindTopic("topic1")
-                 .SetBody(Encoding.UTF8.GetBytes(producer.ClientId.ToString()))
-                    .BindSendCallBack((response) =>
-                    {
-                        Debug.WriteLine(sendCount);
-                        responses.Add(response);
-                        sendCount++;
-                        isOver = sendCount == TestConfig.Producer_Send_Count;
-                        //if (isOver)
-                        //{
-                        //    producer.Close();
-                        //    producer.Stop();
-                        //    Assert.IsTrue(responses.All(x => x.SendSuccess));
-                        //}
-                    }).Start();
-                   Thread.Sleep(20);
+                producers.Add(producer);
+                producer.BindTopic("topic1")
+              .SetBody(Encoding.UTF8.GetBytes(producer.ClientId.ToString()))
+                 .BindSendCallBack((response) =>
+                 {
+                     lock (this)
+                     {
+                         Console.WriteLine(sendCount);
+                         responses.Add(response);
+                         sendCount++;
+                         isOver = sendCount >= 100;
+                         if (isOver)
+                         {
+                             producer.Close();
+                             producer.Stop();
+                             var count = responses.Count;
+                             //Assert.IsTrue(responses.All(x => x.SendSuccess));
+                             return;
+                         }
+                     }
+                 }).ConnectToServer();
+                    producer.Start();
             }
 
             Console.ReadLine();
@@ -162,8 +176,11 @@ namespace Camoran.Queue.UnitTest.Client
 
         public CamoranProducer CreateProducer()
         {
-            HostConfig config = new HostConfig { Address = _address, Port = _port };
-            var producer = new CamoranProducer(Guid.NewGuid(), config);
+         
+            ClientConfig config = new ClientConfig { Address = _address, Port = _port };
+            var producerId = Guid.NewGuid();
+            var inner = new Client_byHelios<ProducerRequest, ProducerResponse>(producerId, config);
+            var producer = new CamoranProducer(producerId, config, inner);
             return producer;
         }
     }

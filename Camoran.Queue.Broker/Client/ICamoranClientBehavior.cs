@@ -6,8 +6,10 @@ using System.Threading.Tasks;
 
 namespace Camoran.Queue.Broker.Client
 {
-    public interface ICamoranClientStrategy
+    public interface ICamoranClientBehavior
     {
+        void ConsumerConnect(Guid consumerId);
+        void ProducerConnect(Guid producerId);
         void ConsumerDisconnect(Guid consumerId);
         void ProducerDisconnect(Guid producerid);
         void ProducerTimeout(int timeoutSeconds);

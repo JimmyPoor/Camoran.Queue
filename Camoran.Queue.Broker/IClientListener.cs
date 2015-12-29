@@ -1,4 +1,6 @@
-﻿using System;
+﻿using Camoran.Queue.Client;
+using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -10,5 +12,12 @@ namespace Camoran.Queue.Broker
     {
         void StartListen();
         void StopListen();
+    }
+
+    public interface IClientListener<Request, Response>: IClientListener
+          where Request : ClientMessage
+        where Response : ClientMessage
+    {
+        ConcurrentDictionary<string, Func<Request, Response>> ReceiveEvents { get; set; }
     }
 }

@@ -33,6 +33,10 @@
     <Reference Include="Camoran">
       <HintPath>..\..\Camoran\Camoran\bin\Debug\Camoran.dll</HintPath>
     </Reference>
+    <Reference Include="Helios, Version=1.4.2.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Helios.1.4.2\lib\net45\Helios.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="protobuf-net, Version=2.0.0.668, Culture=neutral, PublicKeyToken=257b51d87d2e4d67, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\packages\protobuf-net.2.0.0.668\lib\net40\protobuf-net.dll</HintPath>
@@ -55,7 +59,7 @@
     <Compile Include="Consumer\ConsumerMessageBuilder.cs" />
     <Compile Include="Consumer\ConsumerRequest.cs" />
     <Compile Include="Consumer\ConsumerResponse.cs" />
-    <Compile Include="HostConfig.cs" />
+    <Compile Include="ClientConfig.cs" />
     <Compile Include="IClient.cs" />
     <Compile Include="IClientMessage.cs" />
     <Compile Include="Producer\CamoranProducer.cs" />

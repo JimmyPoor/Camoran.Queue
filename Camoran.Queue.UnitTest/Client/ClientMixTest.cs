@@ -4,6 +4,7 @@ using Camoran.Queue.Client.Producer;
 using Camoran.Queue.UnitTest.Client.Consumer;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
 using System.Threading;
@@ -84,19 +85,27 @@ namespace Camoran.Queue.UnitTest.Client
         public void Single_Sender_Send_Message_With_Multi_Conumsers()
         {
             byte[] sendBody = Encoding.UTF8.GetBytes(sendString);
-            CamoranProducer producer = this.CreateAndInitialProducer
+            int sendCount = 1;
+            CamoranProducer producer = null;
+            producer = this.CreateAndInitialProducer
                 (
                   topic,
                   sendBody,
                   (response) =>
                   {
                       sendCount++;
-                      Debug.WriteLine("sendCount:" + sendCount);
+                      Console.WriteLine("sendCount:" + sendCount);
+                      //Thread.Sleep(100);
                       isConsumeOver = sendCount >= TestConfig.Producer_Send_Count;
+                      if (isConsumeOver)
+                      {
+                          producer.Stop();
+                          producer.Close();
+                      }
                   }
                 );
             producer.Start();
-            while (!isConsumeOver) { }
+            //while (!isConsumeOver) { }
             Parallel.For(0, TestConfig.consumerCount, (i) =>
             {
                 i = Interlocked.Increment(ref i);
@@ -108,37 +117,70 @@ namespace Camoran.Queue.UnitTest.Client
                      (response) =>
                      {
                          consumeCount++;
-                         Debug.WriteLine("consumer id:" + response.SenderId + "consumeCount:" + consumeCount);
+                         Console.WriteLine("consumer id:" + response.SenderId + "consumeCount:" + consumeCount);
+                        // Thread.Sleep(100);
                      }
                     );
 
                 consumer.Start();
             });
+            Console.Read();
         }
 
         [TestMethod]
         public void Multi_Sender_Send_WhenMulit_Consumers()
         {
 
-            this.produerTestcase.Send_Message_to_Queue_with_Single_Thread_different_Producer();
+            //this.produerTestcase.Start_Producer_Whole_Action_Mulit_Producers();
+
+            List<CamoranProducer> ls = new List<CamoranProducer>();
+            for (int i = 0; i < 2; i++)
+            {
+                byte[] sendBody = Encoding.UTF8.GetBytes(sendString);
+                CamoranProducer producer=null;
+                producer = this.CreateAndInitialProducer
+               (
+                 topic,
+                 sendBody,
+                 (response) =>
+                 {
+                     sendCount++;
+                     Console.WriteLine("sendCount:" + sendCount);
+                      //Thread.Sleep(100);
+                      isConsumeOver = sendCount >= TestConfig.Producer_Send_Count;
+                     if (isConsumeOver)
+                     {
+                         producer.Stop();
+                         producer.Close();
+                     }
+                 }
+               );
+                producer.ConnectToServer();
+                producer.Start();
+            }
 
             Parallel.For(0, TestConfig.consumerCount, (i) =>
             {
                 i = Interlocked.Increment(ref i);
-                var consumer = this.CreateAndInitialConsumer
-                    (
-                     consumerTestcase.Guids[i--],
-                     topic,
-                     null,
-                     (response) =>
-                     {
-                         consumeCount++;
-                         Debug.WriteLine("consumer id:" + response.SenderId + "consumeCount:" + consumeCount);
-                     }
-                    );
-
-                consumer.Start();
+    
+                    var consumer = this.CreateAndInitialConsumer
+                        (
+                         consumerTestcase.Guids[i--],
+                         topic,
+                         null,
+                         (response) =>
+                         {
+                             consumeCount++;
+                             Console.WriteLine("consumer id:" + response.SenderId + "consumeCount:" + consumeCount);
+                         }
+                        );
+                    consumer.ConnectToServer();
+                    consumer.Start();
+                
+              
             });
+
+            Console.Read();
         }
 
 
