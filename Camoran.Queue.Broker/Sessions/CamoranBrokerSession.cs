@@ -20,7 +20,7 @@ namespace Camoran.Queue.Broker.Sessions
 
     public class CamoranBrokerSession : ICamoranBrokerSession
     {
-        public ConcurrentDictionary<Guid, IList<QueueMessage>> PublishedMessages { get; set; }
+        //public ConcurrentDictionary<Guid, IList<QueueMessage>> PublishedMessages { get; set; }
         public Guid SessionId { get; private set; }
         public ICamoranConsumerManager ConsumerManager { get; private set; }
         public ICamoranProducerManager ProducerManger { get; private set; }
@@ -68,19 +68,29 @@ namespace Camoran.Queue.Broker.Sessions
 
         public void SubscribeConsumer(string topic, CamoranConsumer consumer)
         {
+            consumer.SubscribeTopic(topic);
             this.ConsumerManager.AddClient(topic, consumer);
         }
 
         public void SubscribeProducer(string topic, CamoranProducer producer)
         {
+            producer.BindTopic(topic);
             this.ProducerManger.AddClient(topic, producer);
         }
 
     
         public ICamoranBrokerSession BindListener(HostConfig config)
         {
-            this.ConsumerListener = new CamoranClientListener_ByHelios<ConsumerRequest, ConsumerResponse>(config.ConsumerAddress, config.ConsumerPort, new ProtoBufSerializeProcessor(), true); // need optimize later
-            this.ProducerListener = new CamoranClientListener_ByHelios<ProducerRequest, ProducerResponse>(config.ProduceAddress, config.ProducePort, new ProtoBufSerializeProcessor(), true);// need optimize later
+            this.ConsumerListener = new CamoranClientListener_ByHelios<ConsumerRequest, ConsumerResponse>(
+                config.ConsumerAddress, 
+                config.ConsumerPort, 
+                new ProtoBufSerializeProcessor(), 
+                config.ServerWithAnyIPAddress); // need optimize later
+            this.ProducerListener = new CamoranClientListener_ByHelios<ProducerRequest, ProducerResponse>(
+                config.ProduceAddress, 
+                config.ProducePort, 
+                new ProtoBufSerializeProcessor(), 
+                config.ServerWithAnyIPAddress);// need optimize later
             return this;
 
         }

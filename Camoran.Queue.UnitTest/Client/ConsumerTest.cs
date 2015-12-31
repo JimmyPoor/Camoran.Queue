@@ -137,50 +137,29 @@ namespace Camoran.Queue.UnitTest.Client.Consumer
 
             for (int i = 0; i < TestConfig.consumerCount; i++)
             {
+
                 new TaskFactory().StartNew(() =>
                 {
                     var body = System.Text.Encoding.UTF8.GetBytes("Hello World" + i);
-                    var consumer = CreateConsumer(guids[i--])
+                    var consumer = CreateConsumer(Guid.NewGuid())
                    .SubscribeTopic("topic1")
                    .SetMessageBody(body)
                    .RegisteConsumeAction((response) =>
                    {
-                           consumeCount++;
-                           // tset  for long job runing whether will block all consumer's thread or not
-                           //if (consumeCount % 2 == 0)
-                           //{
-                           //    Console.WriteLine("!!!!!!!!!!!!!!!!!!!!!!");
-                           //    //some long task here
-                           //    Task.Delay(5000).ContinueWith((t) =>
-                           //    {
-                           //        var responseBody2 = System.Text.Encoding.UTF8.GetString(response.Body);
-                           //        var queueMessageBody2 = System.Text.Encoding.UTF8.GetString(response.QueueMeesageBody);
-                           //        Console.WriteLine(responseBody2
-                           //            + "     "
-                           //            + consumeCount
-                           //            + " QueueMessageId:" + response.QueueMessageId
-                           //            + " QueueMessageBody:" + queueMessageBody2
-                           //            + "From Queue Id:" + response.FromQueueId
-                           //            + "Consumed by :" + response.SenderId
-                           //            );
-                           //        Console.WriteLine("end" + consumeCount);
-                           //    });
-                           //}
-                           //else
-                           //{
-                               var responseBody = System.Text.Encoding.UTF8.GetString(response.Body);
-                               var queueMessageBody = System.Text.Encoding.UTF8.GetString(response.QueueMeesageBody);
-                               Console.WriteLine(responseBody
-                                   + "     "
-                                   + consumeCount
-                                   + " QueueMessageId:" + response.QueueMessageId
-                                   + " QueueMessageBody:" + queueMessageBody
-                                   + "From Queue Id:" + response.FromQueueId
-                                   + "Consumed by :" + response.SenderId
-                                   );
-                           //}
-                         //  consumeCount = Interlocked.Increment(ref consumeCount);
-                       
+                   lock (obj)
+                   {
+                       consumeCount++;
+                           var responseBody = System.Text.Encoding.UTF8.GetString(response.Body);
+                           var queueMessageBody = System.Text.Encoding.UTF8.GetString(response.QueueMeesageBody);
+                           Console.WriteLine(responseBody
+                               + "     "
+                               + consumeCount
+                               + " QueueMessageId:" + response.QueueMessageId
+                               + " QueueMessageBody:" + queueMessageBody
+                               + "From Queue Id:" + response.FromQueueId
+                               + "Consumed by :" + response.SenderId
+                               );
+                       }
                    });
                     consumer.ConnectToServer();
                     consumer.Start();

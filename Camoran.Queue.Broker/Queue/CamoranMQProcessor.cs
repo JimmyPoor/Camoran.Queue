@@ -32,7 +32,6 @@ namespace Camoran.Queue.Broker.Queue
                             }
                         }
                     }
-  
                     Thread.Sleep(20);
                 }
             });

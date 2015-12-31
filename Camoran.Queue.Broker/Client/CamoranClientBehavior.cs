@@ -65,8 +65,10 @@ namespace Camoran.Queue.Broker.Client
                 this.ReEnqueueMessages(timeoutMessages);
                 // remove published messages 
                 this.RemovePublishMessagesByConsumers(timeoutConsumers);
+                Console.WriteLine(" {0} consumers has been removed", timeoutConsumers.Count());
                 Session.ConsumerManager.RemoveClients(timeoutConsumers);
                 Console.WriteLine("time out and has comume {0} message", timeoutMessages.Count);
+        
             }, (error) => {
 
             });

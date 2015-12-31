@@ -1,9 +1,6 @@
-﻿using Camoran.Handler;
-using Camoran.Queue.Client;
+﻿using Camoran.Queue.Client;
 using Camoran.Queue.Util.Helper;
 using Camoran.Queue.Util.Serialize;
-using Camoran.Socket;
-using Camoran.Socket.Server;
 using Helios.Net;
 using Helios.Ops.Executors;
 using Helios.Reactor;
@@ -34,6 +31,8 @@ namespace Camoran.Queue.Broker.Listeners
 
         public CamoranClientListener_ByHelios(string address, int port, ISerializeProcessor serializor,bool IsIPAddressAny)
         {
+            if (port <= 0) { throw new ArgumentOutOfRangeException("port value must be larger than 0"); }
+            if(!IsIPAddressAny && string.IsNullOrEmpty(address)) { throw new ArgumentNullException("address can't be null or empty"); }
             _heliosServer = new Server(address, port, this, serializor, IsIPAddressAny);
             //new ProtoBufSerializeProcessor());
         }
@@ -65,11 +64,11 @@ namespace Camoran.Queue.Broker.Listeners
                 this._port = port;
                 this._lisenter = listener;
                 this.SP = sp;
-                this.isAnyIPAddress = isIPAddressAny;
+                this.isAnyIPAddress = isIPAddressAny || string.IsNullOrEmpty(_address);
 
                 var excutor = new TryCatchExecutor((e) =>
                 {
-                    Console.Write(e);
+                    //Console.Write(e);
                 });
                 var bootStrapper = new ServerBootstrap()
                     .Executor(excutor)
@@ -77,7 +76,7 @@ namespace Camoran.Queue.Broker.Listeners
                     .Build();
                 _server = bootStrapper.NewReactor(
                  NodeBuilder.BuildNode()
-                 .Host(IPAddress.Any)
+                 .Host(isIPAddressAny? IPAddress.Any:IPAddress.Parse(_address))
                  .WithPort(port)
                  );
 

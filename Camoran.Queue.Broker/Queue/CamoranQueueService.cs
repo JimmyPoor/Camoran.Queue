@@ -52,7 +52,6 @@ namespace Camoran.Queue.Broker.Queue
             if (topicQueues == null || topicQueues.All(x => x.QueueStatus == QueueStatus.wroking)) return;
             foreach (var queue in topicQueues)
             {
-                System.Threading.Thread.Sleep(10);
                 if (queue.QueueStatus == QueueStatus.stop)
                 {
                     queue.SetQueueStatus(QueueStatus.wroking);

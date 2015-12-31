@@ -14,7 +14,7 @@ namespace ConsoleApplication2
         {
             ProducerTest test = new ProducerTest();
             test.Start_Producer_Whole_Action_Mulit_Producers();
-            // var response2 = producer.SendRequest(new ProducerRequest(topic + "2", null, producer.ClientId, ProducerRequestType.send));
+            //new ClientMixTest().Multi_Sender_Send_WhenMulit_Consumers();
             Console.Read();
         }
     }

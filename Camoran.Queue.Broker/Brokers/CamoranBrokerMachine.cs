@@ -38,22 +38,29 @@ namespace Camoran.Queue.Broker.Brokers
             private set { _session = value; }
         }
 
-        protected readonly int defaultQueueCountWithEeachTopic = 5;
-        protected readonly int consumerTimeout = 20000;
+        protected readonly int QueueCountWithEeachTopic =6;
+        protected readonly int ConsumerTimeoutSeconds = 1000;
 
         private System.Timers.Timer _startQueueScedule = new System.Timers.Timer();
         private System.Timers.Timer _removedTimeoutConsumersScedule = new System.Timers.Timer();
         private static object lockObj = new object();
 
-        public CamoranBrokerMachine()
+        public CamoranBrokerMachine(BrokerConfig config=null)
         {
+            if (config != null)
+            {
+                this.QueueCountWithEeachTopic = config.QueueCountforEachTopic;
+                this.ConsumerTimeoutSeconds = config.ConsumerTimeoutSeconds;
+            }
             Initial();
         }
 
         public void Initial()
         {
-            _startQueueScedule.SetSceduleWork(1000, (o, e) => StartQueues());
-            _removedTimeoutConsumersScedule.SetSceduleWork(consumerTimeout, (o, e) => this.Session.ClientBehavior.ConsumerTimeout(consumerTimeout));
+            _startQueueScedule.SetSceduleWork(100, (o, e) => StartQueues());
+            _removedTimeoutConsumersScedule.SetSceduleWork(10000, (o, e) => 
+            this.Session.ClientBehavior.ConsumerTimeout(ConsumerTimeoutSeconds)
+            );
         }
 
         public void Start()
@@ -105,7 +112,7 @@ namespace Camoran.Queue.Broker.Brokers
             _producerListener.ReceiveEvents.GetOrAdd(ProducerRequestType.disconnect.ToString(), ProducerDisconnectAction());
             return this;
         }
-
+         
         protected void StartQueues()
         {
             ThreadHelper.TryLock(lockObj, 
@@ -128,7 +135,7 @@ namespace Camoran.Queue.Broker.Brokers
                 Session.SubscribeConsumer(request.Topic, consumer);
                 this.Session
                     .QueueService
-                    .CreateTopicQueuesIfNotExists(request.Topic, defaultQueueCountWithEeachTopic);
+                    .CreateTopicQueuesIfNotExists(request.Topic, QueueCountWithEeachTopic);
 
                 bool canConsume = consumer.Status == ClientStatus.ready;
                 if (canConsume)
@@ -197,7 +204,7 @@ namespace Camoran.Queue.Broker.Brokers
                 Session.SubscribeProducer(request.Topic, producer);
                 this.Session
                     .QueueService
-                    .CreateTopicQueuesIfNotExists(request.Topic, defaultQueueCountWithEeachTopic);
+                    .CreateTopicQueuesIfNotExists(request.Topic, QueueCountWithEeachTopic);
 
                 producer.StartWorkingDate = DateTime.Now;
 
@@ -233,8 +240,6 @@ namespace Camoran.Queue.Broker.Brokers
             };
             return producerDisconnectAction;
         }
-
-
         private void StartQueues(string topic, IEnumerable<MessageQueue> topicQueues)
         {
             this.Session.QueueService.StartQueues(
@@ -250,9 +255,5 @@ namespace Camoran.Queue.Broker.Brokers
             });
         }
 
-        //public ICamoranBrokerMachine InitialSerializor(ISerializeProcessor serializer)
-        //{
-        //    Session.i
-        //}
     }
 }

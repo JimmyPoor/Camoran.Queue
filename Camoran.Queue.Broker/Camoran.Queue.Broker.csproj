@@ -30,10 +30,6 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Camoran, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\Camoran\Camoran\bin\Debug\Camoran.dll</HintPath>
-    </Reference>
     <Reference Include="Helios, Version=1.4.2.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>C:\Users\JimmyPoor\Desktop\helios-dev\helios-dev\src\Helios\bin\Debug\Helios.dll</HintPath>
@@ -55,7 +51,7 @@
   <ItemGroup>
     <Compile Include="Bootstrap\CamoranBorkerBootstrap.cs" />
     <Compile Include="Brokers\CamoranBrokerMachine.cs" />
-    <Compile Include="HostConfig.cs" />
+    <Compile Include="Config.cs" />
     <Compile Include="Client\CamoranClientManager.cs" />
     <Compile Include="Client\CamoranClientBehavior.cs" />
     <Compile Include="Client\ICamoranClientManager.cs" />

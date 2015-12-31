@@ -9,6 +9,7 @@ namespace Camoran.Queue.Client
     public interface IClient
     {
         Guid ClientId { get; }
+        string CurrentTopic { get;}
         ClientStatus Status { get; set; }
         DateTime StartWorkingDate { get; set; }
         bool IsTimeout(int timeoutSeconds);

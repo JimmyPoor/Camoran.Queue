@@ -12,7 +12,7 @@ namespace Camoran.Queue.Broker.Client
         void ProducerConnect(Guid producerId);
         void ConsumerDisconnect(Guid consumerId);
         void ProducerDisconnect(Guid producerid);
-        void ProducerTimeout(int timeoutSeconds);
-        void ConsumerTimeout(int timeoutSeconds);
+        void ProducerTimeout(int seconds);
+        void ConsumerTimeout(int seconds);
     }
 }

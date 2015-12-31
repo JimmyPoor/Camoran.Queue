@@ -19,9 +19,11 @@ namespace Camoran.Queue.UnitTest.Broker.Machine
         CamoranBrokerMachine machine;
         HostConfig config = new HostConfig
         {
-            ServerWithAnyIPAddress = true,
-            ConsumerPort = 8080,
-            ProducePort=8081,
+            ServerWithAnyIPAddress = false,
+            ConsumerPort =8080,
+            ProducePort = 8081,
+            ConsumerAddress = "127.0.0.1",
+            ProduceAddress="127.0.0.1"
         };
         [TestMethod]
         public void InitialMachineTest()

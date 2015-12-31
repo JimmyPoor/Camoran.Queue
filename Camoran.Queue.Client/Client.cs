@@ -1,5 +1,4 @@
 ﻿using Camoran.Queue.Util.Serialize;
-using Camoran.Socket.Client;
 using Camoran.Queue.Util.Extensions;
 using System;
 using System.Threading;
@@ -30,6 +29,8 @@ namespace Camoran.Queue.Client
         }
 
         public Func<Request, Response> OnClientFailtoConnect { get; set; }
+
+        public string CurrentTopic { get; protected set; }
 
         public Client(Guid clientId, ClientConfig config)
         {

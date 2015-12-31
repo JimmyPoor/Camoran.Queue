@@ -1,7 +1,5 @@
 ﻿using Camoran.Queue.Core;
 using Camoran.Queue.Util.Serialize;
-using Camoran.Socket.Client;
-using Camoran.Socket.Message;
 using Camoran.Queue.Util.Extensions;
 using System;
 using System.Collections.Generic;
@@ -18,15 +16,13 @@ namespace Camoran.Queue.Client.Consumer
     public class CamoranConsumer : Client<ConsumerRequest, ConsumerResponse>
     {
         public IConsumerMessageBuilder ConsumeMessageBuilder { get; private set; }
-        private string _currentTopic;
         private byte[] _currentBody;
         private Action<ConsumerResponse> _consumeTask;
         IClient<ConsumerRequest, ConsumerResponse> _inner;
 
-        private readonly int _consumeSceduleInterval =100;
+        private readonly int _consumeSceduleInterval =80;
         private object lockobj = new object();
 
-        public string CurrentTopic { get { return _currentTopic; } }
         public Camoran.Queue.Core.Message.QueueMessage CurrentQueueMessage { get; set; }
 
         private System.Timers.Timer _consumerTimer = new System.Timers.Timer();
@@ -53,7 +49,7 @@ namespace Camoran.Queue.Client.Consumer
 
         public CamoranConsumer SubscribeTopic(string topic)
         {
-            this._currentTopic = topic;
+            base.CurrentTopic = topic;
             return this;
         }
 
@@ -131,7 +127,7 @@ namespace Camoran.Queue.Client.Consumer
         {
             var consumeRequest = this
           .ConsumeMessageBuilder
-          .BuildConsumerRequestMessage(_currentTopic, _currentBody, this.ClientId, requestType);
+          .BuildConsumerRequestMessage(base.CurrentTopic, _currentBody, this.ClientId, requestType);
             return consumeRequest;
         }
 

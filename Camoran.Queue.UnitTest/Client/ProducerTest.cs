@@ -135,6 +135,7 @@ namespace Camoran.Queue.UnitTest.Client
         [TestMethod]
         public void Start_Producer_Whole_Action_Mulit_Producers()
         {
+      
             List<ProducerResponse> responses = new List<ProducerResponse>();
             List<CamoranProducer> producers = new List<CamoranProducer>();
             int sendCount = 0;
@@ -147,12 +148,12 @@ namespace Camoran.Queue.UnitTest.Client
               .SetBody(Encoding.UTF8.GetBytes(producer.ClientId.ToString()))
                  .BindSendCallBack((response) =>
                  {
-                     lock (this)
+                     lock (lockobj)
                      {
                          Console.WriteLine(sendCount);
                          responses.Add(response);
                          sendCount++;
-                         isOver = sendCount >= 100;
+                         isOver = sendCount >= TestConfig.Producer_Send_Count;
                          if (isOver)
                          {
                              producer.Close();
@@ -164,6 +165,7 @@ namespace Camoran.Queue.UnitTest.Client
                      }
                  }).ConnectToServer();
                     producer.Start();
+  
             }
 
             Console.ReadLine();

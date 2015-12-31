@@ -12,16 +12,12 @@ namespace Camoran.Queue.Client.Producer
     public class CamoranProducer : Client<ProducerRequest, ProducerResponse> 
     {
         public IProducerMessageBuilder ProducerMessageBuilder { get; private set; }
-        public string CurrentTopic { get { return _currentTopic; } }
 
-        private string _currentTopic;
         private byte[] _currentBody;
-        private int _sendInterval = 1;
+        private int _sendInterval = 100;
         private Action<ProducerResponse> _sendCallback;
         private System.Timers.Timer _producerTimer = new System.Timers.Timer();
-
         IClient<ProducerRequest, ProducerResponse> _inner;
-
         private object lockObj = new object();
 
         public CamoranProducer(Guid clientId, ClientConfig config, IClient<ProducerRequest, ProducerResponse> inner)
@@ -43,7 +39,7 @@ namespace Camoran.Queue.Client.Producer
 
         public CamoranProducer BindTopic(string topic)
         {
-            this._currentTopic = topic;
+            base.CurrentTopic = topic;
             return this;
         }
 
@@ -109,12 +105,12 @@ namespace Camoran.Queue.Client.Producer
 
         private ProducerRequest CreateSendRequest()
         {
-            return ProducerMessageBuilder.BuildSendRequestMessage(_currentTopic, _currentBody, this.ClientId, ProducerRequestType.send);
+            return ProducerMessageBuilder.BuildSendRequestMessage(base.CurrentTopic, _currentBody, this.ClientId, ProducerRequestType.send);
         }
 
         private ProducerRequest DisConnectRequest()
         {
-            return ProducerMessageBuilder.BuildSendRequestMessage(_currentTopic, _currentBody, this.ClientId, ProducerRequestType.disconnect);
+            return ProducerMessageBuilder.BuildSendRequestMessage(base.CurrentTopic, _currentBody, this.ClientId, ProducerRequestType.disconnect);
         }
     }
 
