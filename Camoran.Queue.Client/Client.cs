@@ -51,9 +51,7 @@ namespace Camoran.Queue.Client
 
         public virtual bool IsTimeout(int timeoutSeconds)
         {
-            return
-                //this.Status != ClientStatus.wait &&
-                DateTime.Now.AddSeconds(-timeoutSeconds) > this.StartWorkingDate;
+            return DateTime.Now.AddSeconds(-timeoutSeconds) > this.StartWorkingDate;
         }
 
         public abstract Response SendRequest(Request request);
@@ -102,11 +100,12 @@ namespace Camoran.Queue.Client
             if (!ConnectIsOpen())
             {
                  _response = this.OnClientFailtoConnect(request);
+                EnsureConnectionIsOpen();
+                SendRequest(request);
             }
             else
             {
                 are.Reset();
-                EnsureConnectionIsOpen();
                 byte[] buffer = SP.Serialize(request);
                 _response = default(Response);
                 Connection.BeginReceive((data, i) =>

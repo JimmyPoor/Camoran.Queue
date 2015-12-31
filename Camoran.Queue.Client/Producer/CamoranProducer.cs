@@ -14,7 +14,7 @@ namespace Camoran.Queue.Client.Producer
         public IProducerMessageBuilder ProducerMessageBuilder { get; private set; }
 
         private byte[] _currentBody;
-        private int _sendInterval = 100;
+        private int _sendInterval = 200;
         private Action<ProducerResponse> _sendCallback;
         private System.Timers.Timer _producerTimer = new System.Timers.Timer();
         IClient<ProducerRequest, ProducerResponse> _inner;
@@ -68,49 +68,42 @@ namespace Camoran.Queue.Client.Producer
         public override void Stop()
         {
             this._producerTimer.Stop();
-            var disconnectRequest = this.DisConnectRequest();
-            this.SendRequest(disconnectRequest);
             this._inner.Stop();
         }
 
         public override void Close()
         {
+            SendDisconnRequest(null);
             this._producerTimer.Close();
             this._inner.Close();
         }
 
+        protected virtual ProducerResponse SendDisconnRequest(ProducerRequest request)
+        {
+            var disconnectRequest = this.CreateRequestByRequestType(ProducerRequestType.disconnect);
+            return this.SendRequest(disconnectRequest);
+        }
+
         protected virtual ProducerResponse WhenProducerConnectFail(ProducerRequest request)
         {
-            //log
-            //var errorMsg =  string.Format( "producer id :{0} can't connect to broker now",request.SenderId);
-            //byte[] errorBytes = Encoding.UTF8.GetBytes(errorMsg);
-            //var response= ProducerMessageBuilder.BuildResponseMessage(request.Topic, errorBytes, request.SenderId);
-            //response.Error = new Core.Message.ErrorMessage { Body= errorBytes };
-            //return response;
             return null;
         }
-        protected virtual void SetSceduleWork()
+        private void SetSceduleWork()
         {
             this._producerTimer.SetSceduleWork(_sendInterval, (e, o) =>
             {
                 Util.Helper.ThreadHelper.TryLock(lockObj, () =>
                 {
-                    var sendMessageRequest = CreateSendRequest();
+                    var sendMessageRequest = CreateRequestByRequestType(ProducerRequestType.send);
                     var response = this.SendRequest(sendMessageRequest);
                     this._sendCallback.Invoke(response);
                 }, null);
             }); 
         }
 
-
-        private ProducerRequest CreateSendRequest()
+        private ProducerRequest CreateRequestByRequestType(ProducerRequestType requestType)
         {
-            return ProducerMessageBuilder.BuildSendRequestMessage(base.CurrentTopic, _currentBody, this.ClientId, ProducerRequestType.send);
-        }
-
-        private ProducerRequest DisConnectRequest()
-        {
-            return ProducerMessageBuilder.BuildSendRequestMessage(base.CurrentTopic, _currentBody, this.ClientId, ProducerRequestType.disconnect);
+            return ProducerMessageBuilder.BuildSendRequestMessage(base.CurrentTopic, _currentBody, this.ClientId, requestType);
         }
     }
 

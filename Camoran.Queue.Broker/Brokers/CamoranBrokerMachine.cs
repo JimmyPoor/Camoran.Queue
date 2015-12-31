@@ -22,7 +22,6 @@ namespace Camoran.Queue.Broker.Brokers
         void Initial();
         ICamoranBrokerMachine RegistBrokerSession(ICamoranBrokerSession session);
         ICamoranBrokerMachine InitialClientListener(HostConfig config);
-        //ICamoranBrokerMachine InitialSerializor(ISerializeProcessor serializer);
         ICamoranBrokerSession Session { get; }
     }
     public class CamoranBrokerMachine : ICamoranBrokerMachine
@@ -38,8 +37,8 @@ namespace Camoran.Queue.Broker.Brokers
             private set { _session = value; }
         }
 
-        protected readonly int QueueCountWithEeachTopic =6;
-        protected readonly int ConsumerTimeoutSeconds = 1000;
+        protected readonly int QueueCountWithEeachTopic =10;
+        protected readonly int ConsumerTimeoutSeconds = 5;
 
         private System.Timers.Timer _startQueueScedule = new System.Timers.Timer();
         private System.Timers.Timer _removedTimeoutConsumersScedule = new System.Timers.Timer();
@@ -58,7 +57,7 @@ namespace Camoran.Queue.Broker.Brokers
         public void Initial()
         {
             _startQueueScedule.SetSceduleWork(100, (o, e) => StartQueues());
-            _removedTimeoutConsumersScedule.SetSceduleWork(10000, (o, e) => 
+            _removedTimeoutConsumersScedule.SetSceduleWork(20000, (o, e) => 
             this.Session.ClientBehavior.ConsumerTimeout(ConsumerTimeoutSeconds)
             );
         }
@@ -136,14 +135,13 @@ namespace Camoran.Queue.Broker.Brokers
                 this.Session
                     .QueueService
                     .CreateTopicQueuesIfNotExists(request.Topic, QueueCountWithEeachTopic);
-
-                bool canConsume = consumer.Status == ClientStatus.ready;
+                consumer.StartWorkingDate = DateTime.Now;
+                var canConsume = consumer.Status == ClientStatus.ready;
                 if (canConsume)
                 {
-                    consumer.StartWorkingDate = DateTime.Now;
                     consumer.SetClientStatus(ClientStatus.working);
                 }
-                ConsumerResponse response = Session.MessageManager.ConsumerMessageBuilder.BuildConsumerResponseMessage(
+                var response = Session.MessageManager.ConsumerMessageBuilder.BuildConsumerResponseMessage(
                     topic: request.Topic,
                     body: request.Body,
                     senderId: request.SenderId

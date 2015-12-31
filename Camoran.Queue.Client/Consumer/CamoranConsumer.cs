@@ -20,7 +20,7 @@ namespace Camoran.Queue.Client.Consumer
         private Action<ConsumerResponse> _consumeTask;
         IClient<ConsumerRequest, ConsumerResponse> _inner;
 
-        private readonly int _consumeSceduleInterval =80;
+        private readonly int _consumeSceduleInterval =100;
         private object lockobj = new object();
 
         public Camoran.Queue.Core.Message.QueueMessage CurrentQueueMessage { get; set; }
@@ -79,17 +79,31 @@ namespace Camoran.Queue.Client.Consumer
 
         public override void Close()
         {
+            _consumerTimer.Close();
             this.SendConsumerDisconnectRequest();
             _inner.Close();
         }
+        protected virtual ConsumerResponse SendConsumerCallbackRequest(Guid queueMessageId)
+        {
+            var request = this.CreateRequestByRequestType(ConsumerRequestType.callback);
+            request.QueueMessageId = queueMessageId;
+            var response = this.SendRequest(request);
+            return response;
+        }
 
+        protected virtual ConsumerResponse SendConsumerDisconnectRequest()
+        {
+            var request = this.CreateRequestByRequestType(ConsumerRequestType.disconnect);
+            var response = this.SendRequest(request);
+            return response;
+        }
         protected virtual ConsumerResponse WhenConsumerConnectFail(ConsumerRequest request)
         {
             // record events for fail to connect to server successfully
             return null;
         }
 
-        protected virtual void SetSceduleWork()
+        private void SetSceduleWork()
         {
             _consumerTimer.SetSceduleWork(_consumeSceduleInterval, (o, b) =>
             {
@@ -105,23 +119,6 @@ namespace Camoran.Queue.Client.Consumer
                 }, null);
             });
         }
-
-        private ConsumerResponse SendConsumerCallbackRequest(Guid queueMessageId)
-        {
-            var request = this.CreateRequestByRequestType(ConsumerRequestType.callback);
-            request.QueueMessageId = queueMessageId;
-            var response = this.SendRequest(request);
-            return response;
-        }
-
-
-        private ConsumerResponse SendConsumerDisconnectRequest()
-        {
-            var request = this.CreateRequestByRequestType(ConsumerRequestType.disconnect);
-            var response = this.SendRequest(request);
-            return response;
-        }
-
 
         private ConsumerRequest CreateRequestByRequestType(ConsumerRequestType requestType)
         {

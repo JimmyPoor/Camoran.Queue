@@ -118,15 +118,12 @@ namespace Camoran.Queue.UnitTest.Client.Consumer
                     + "From Queue Id:" + response.FromQueueId
                     + "Consumed by :" + response.SenderId
                     );
-                //var responseBody = System.Text.Encoding.UTF8.GetString(response.Body);
-                //Console.WriteLine(responseBody + " " + consumerCount);
                 consumeCount++;
-                // canStop = consumerCount == TestConfig.Producer_Send_Count;
             });
             consumer.ConnectToServer();
             consumer.Start();
             Console.Read();
-         //   Assert.AreEqual(consumerCount, TestConfig.Producer_Send_Count);
+            //   Assert.AreEqual(consumerCount, TestConfig.Producer_Send_Count);
         }
 
         private object obj = new object();
@@ -141,14 +138,15 @@ namespace Camoran.Queue.UnitTest.Client.Consumer
                 new TaskFactory().StartNew(() =>
                 {
                     var body = System.Text.Encoding.UTF8.GetBytes("Hello World" + i);
-                    var consumer = CreateConsumer(Guid.NewGuid())
+                    CamoranConsumer consumer = null;
+                    consumer = CreateConsumer(Guid.NewGuid())
                    .SubscribeTopic("topic1")
                    .SetMessageBody(body)
                    .RegisteConsumeAction((response) =>
                    {
-                   lock (obj)
-                   {
-                       consumeCount++;
+                       lock (obj)
+                       {
+                           consumeCount++;
                            var responseBody = System.Text.Encoding.UTF8.GetString(response.Body);
                            var queueMessageBody = System.Text.Encoding.UTF8.GetString(response.QueueMeesageBody);
                            Console.WriteLine(responseBody
@@ -170,6 +168,9 @@ namespace Camoran.Queue.UnitTest.Client.Consumer
             Console.ReadLine();
             Assert.AreEqual(consumeCount, TestConfig.Producer_Send_Count);
         }
+
+        [TestMethod]
+        public void Close_Consumer_Test() { }
 
         public CamoranConsumer CreateConsumer(Guid id)
         {
