@@ -6,7 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 
 namespace Camoran.Queue.Util.Helper
-{
+{ 
     public static   class ThreadHelper
     {
         public static bool TryLock( object lockObj, Action action,Action<Exception> exceptonAction=null)
