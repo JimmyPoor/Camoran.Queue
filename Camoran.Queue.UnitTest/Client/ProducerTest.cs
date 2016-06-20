@@ -136,31 +136,32 @@ namespace Camoran.Queue.UnitTest.Client
         public void Start_Producer_Whole_Action_Mulit_Producers()
         {
 
-            List<ProducerResponse> responses = new List<ProducerResponse>();
-            List<CamoranProducer> producers = new List<CamoranProducer>();
+            //List<ProducerResponse> responses = new List<ProducerResponse>();
+           // List<CamoranProducer> producers = new List<CamoranProducer>();
             int sendCount = 0;
             bool isOver = false;
             for (int i = 0; i < TestConfig.producerCount; i++)
             {
                 var producer = CreateProducer();
-                producers.Add(producer);
-                producer.BindTopic("topic1")
-              .SetBody(Encoding.UTF8.GetBytes(producer.ClientId.ToString()))
+                //producers.Add(producer);
+                producer.BindTopic(i % 2 == 0 ? i%3==0?"topic3": "topic2": "topic1")
+                 //producer.BindTopic( "topic1")
+                  .SetBody(Encoding.UTF8.GetBytes(producer.ClientId.ToString()))
                  .BindSendCallBack((response) =>
                  {
                      lock (lockobj)
                      {
-                         Console.WriteLine(sendCount);
-                         responses.Add(response);
+                         Console.WriteLine(sendCount+response.Topic);
+                        // responses.Add(response);
                          sendCount++;
                          isOver = sendCount >= TestConfig.Producer_Send_Count;
                          if (isOver)
                          {
                              producer.Close();
                              producer.Stop();
-                             var count = responses.Count;
+                            // var count = responses.Count;
                              //Assert.IsTrue(responses.All(x => x.SendSuccess));
-                            // Console.Read();
+                             // Console.Read();
                              return;
                          }
                      }

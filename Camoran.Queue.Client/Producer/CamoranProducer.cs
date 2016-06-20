@@ -14,7 +14,7 @@ namespace Camoran.Queue.Client.Producer
         public IProducerMessageBuilder ProducerMessageBuilder { get; private set; }
 
         private byte[] _currentBody;
-        private int _sendInterval = 200;
+        private int _sendInterval = 100;
         private Action<ProducerResponse> _sendCallback;
         private System.Timers.Timer _producerTimer = new System.Timers.Timer();
         IClient<ProducerRequest, ProducerResponse> _inner;

@@ -15,18 +15,23 @@ namespace Camoran.Queue.Core.Message
 
         }
         public QueueMessage(string header, byte[] body)
-            : this(header, body, Guid.Empty)
+            : this(header, body, string.Empty)
         {
 
         }
+        public QueueMessage(string header, byte[] body,string topic)
+       : this(header, body, topic, Guid.Empty)
+        {
 
-        public QueueMessage(string header, byte[] body, Guid queueId)
+        }
+        public QueueMessage(string header, byte[] body, string topic,Guid queueId)
         {
             this.Header = header;
             this.Body = body;
             this.QueueId = queueId;
             this.CreateDate = DateTime.Now;
             this.MessageId = Guid.NewGuid();
+            this.Topic = topic;
         }
 
         public void SetQueueId(Guid queueId)
@@ -39,9 +44,14 @@ namespace Camoran.Queue.Core.Message
             this.QueueOffset = offset;
         }
 
-        public static QueueMessage Create(string header, byte[] body)
+        //public static QueueMessage Create(string header, byte[] body)
+        //{
+        //    return new QueueMessage(header,body);
+        //}
+
+        public static QueueMessage Create(string header,byte[]body,string topic)
         {
-            return new QueueMessage(header,body);
+            return new QueueMessage(header, body,topic);
         }
 
         public Guid MessageId { get; private set; }
@@ -50,6 +60,7 @@ namespace Camoran.Queue.Core.Message
         public string Header { get; set; }
         public byte[] Body { get; set; }
         public DateTime CreateDate { get; private set; }
+        public string Topic { get; private set; }
 
     }
 

@@ -126,7 +126,7 @@ namespace Camoran.Queue.Broker.Listeners
                                 RemoteHost = connection.RemoteHost
                             });
                     }, (error) => {
-                       // TempServer_OnReceive(incomingData,connection);
+                        throw error;
                     } ); 
             }
         }

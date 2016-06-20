@@ -11,6 +11,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace Camoran.Queue.Broker.Brokers
 {
@@ -37,14 +38,14 @@ namespace Camoran.Queue.Broker.Brokers
             private set { _session = value; }
         }
 
-        protected readonly int QueueCountWithEeachTopic =10;
-        protected readonly int ConsumerTimeoutSeconds = 5;
+        protected readonly int QueueCountWithEeachTopic = 5;
+        protected readonly int ConsumerTimeoutSeconds = 10;
 
         private System.Timers.Timer _startQueueScedule = new System.Timers.Timer();
         private System.Timers.Timer _removedTimeoutConsumersScedule = new System.Timers.Timer();
         private static object lockObj = new object();
 
-        public CamoranBrokerMachine(BrokerConfig config=null)
+        public CamoranBrokerMachine(BrokerConfig config = null)
         {
             if (config != null)
             {
@@ -56,9 +57,9 @@ namespace Camoran.Queue.Broker.Brokers
 
         public void Initial()
         {
-            _startQueueScedule.SetSceduleWork(100, (o, e) => StartQueues());
-            _removedTimeoutConsumersScedule.SetSceduleWork(20000, (o, e) => 
-            this.Session.ClientBehavior.ConsumerTimeout(ConsumerTimeoutSeconds)
+            _startQueueScedule.SetSceduleWork(1, (o, e) => StartQueues());
+            _removedTimeoutConsumersScedule.SetSceduleWork(ConsumerTimeoutSeconds * 100, (o, e) =>
+              this.Session.ClientBehavior.ConsumerTimeout(ConsumerTimeoutSeconds)
             );
         }
 
@@ -98,7 +99,7 @@ namespace Camoran.Queue.Broker.Brokers
         public ICamoranBrokerMachine InitialClientListener(HostConfig config)
         {
             if (Session == null) throw new NullReferenceException("please regist broker session first");
-            if(config==null) throw new NullReferenceException("config can't be null");
+            if (config == null) throw new NullReferenceException("config can't be null");
             Session.BindListener(config);
 
             var _consumerListener = Session.ConsumerListener as IClientListener<ConsumerRequest, ConsumerResponse>;
@@ -111,19 +112,20 @@ namespace Camoran.Queue.Broker.Brokers
             _producerListener.ReceiveEvents.GetOrAdd(ProducerRequestType.disconnect.ToString(), ProducerDisconnectAction());
             return this;
         }
-         
-        protected void StartQueues()
+
+        protected  void StartQueues()
         {
-            ThreadHelper.TryLock(lockObj, 
-                () => {
-                var queues = Session.QueueService.TopicQueues.Select(kv => kv);
-                foreach (var kv in queues)
+            ThreadHelper.TryLock(lockObj,
+                () =>
                 {
-                    this.StartQueues(kv.Key, kv.Value);
-                }
-            }, null);
+                    var queues = Session.QueueService.TopicQueues.Select(kv => kv);
+                    foreach (var kv in queues)
+                    {
+                         this.StartQueues(kv.Key, kv.Value);
+                    }
+                }, null);
         }
-    
+
 
         protected virtual Func<ConsumerRequest, ConsumerResponse> ConsumerConnectAndConsumeAction()
         {
@@ -206,7 +208,7 @@ namespace Camoran.Queue.Broker.Brokers
 
                 producer.StartWorkingDate = DateTime.Now;
 
-                var queueMessage = QueueMessage.Create(request.Header, request.Body);
+                var queueMessage = QueueMessage.Create(request.Header, request.Body, request.Topic);
                 bool sendResult = Session.MessageManager.TrySendMessage(
                     request.Topic,
                     producer.ClientId,
@@ -238,19 +240,19 @@ namespace Camoran.Queue.Broker.Brokers
             };
             return producerDisconnectAction;
         }
-        private void StartQueues(string topic, IEnumerable<MessageQueue> topicQueues)
+        private  void StartQueues(string topic, IEnumerable<MessageQueue> topicQueues)
         {
-            this.Session.QueueService.StartQueues(
-             topicQueues,
-            (queue) =>
-            {
-                var consumer = this.Session.ConsumerManager.FindConsumerByQueueId(topic, queue.QueueId);
-                return consumer == null ? false : consumer.Status == ClientStatus.wait;
-            },
-            (queueMessage) =>
-            {
-                this.Session.MessageManager.PublishMessage(topic, queueMessage);
-            });
+                 this.Session.QueueService.StartQueues(
+                   topicQueues,
+                  (queue) =>
+                  {
+                      var consumer = this.Session.ConsumerManager.FindConsumerByQueueId(topic, queue.QueueId);
+                      return consumer == null ? false : consumer.Status == ClientStatus.wait;
+                  },
+                  (queueMessage) =>
+                  {
+                      this.Session.MessageManager.PublishMessage(queueMessage.Topic, queueMessage);
+                  });
         }
 
     }

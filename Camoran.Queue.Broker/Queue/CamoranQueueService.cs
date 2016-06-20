@@ -45,7 +45,7 @@ namespace Camoran.Queue.Broker.Queue
               % queueCount;
         }
 
-        public virtual void StartQueues(IEnumerable<MessageQueue> topicQueues, Func<MessageQueue, bool> canInvoke, Action<QueueMessage> whenInvoke)
+        public virtual async void  StartQueues(IEnumerable<MessageQueue> topicQueues, Func<MessageQueue, bool> canInvoke, Action<QueueMessage> whenInvoke)
         {
             if (canInvoke == null) return;
             if (whenInvoke == null) return;
@@ -55,7 +55,7 @@ namespace Camoran.Queue.Broker.Queue
                 if (queue.QueueStatus == QueueStatus.stop)
                 {
                     queue.SetQueueStatus(QueueStatus.wroking);
-                    QueueProcessor.ProcessQueueAsync(
+                    await QueueProcessor.ProcessQueueAsync(
                       queue,
                       () =>
                       {

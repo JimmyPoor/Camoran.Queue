@@ -169,6 +169,40 @@ namespace Camoran.Queue.UnitTest.Client.Consumer
             Assert.AreEqual(consumeCount, TestConfig.Producer_Send_Count);
         }
 
+
+        [TestMethod]
+        public void Start_Consume_Whole_Action_With_Diff_Topic_Test()
+        {
+            int consumeCount = 0;
+            for (int i = 0; i < TestConfig.consumerCount; i++)
+            {
+                var body = Encoding.UTF8.GetBytes("Hello");
+                var consumer = this.CreateConsumer(Guid.NewGuid())
+                    .SubscribeTopic(i % 2 == 0 ? i % 3 == 0 ? "topic3" : "topic2" : "topic1")
+                    .SetMessageBody(body)
+                    .RegisteConsumeAction((response) => {
+                        //lock (obj)
+                        //{
+                            consumeCount++;
+                            var responseBody = System.Text.Encoding.UTF8.GetString(response.Body);
+                            var queueMessageBody = System.Text.Encoding.UTF8.GetString(response.QueueMeesageBody);
+                            Console.WriteLine(responseBody
+                                + "     "
+                                + consumeCount
+                                + " QueueMessageId:" + response.QueueMessageId
+                                + " QueueMessageBody:" + queueMessageBody
+                                + "From Queue Id:" + response.FromQueueId
+                                + "Consumed by :" + response.SenderId
+                                + "Topic:"+ response.Topic
+                                );
+                        //}
+                    }) ;
+                consumer.ConnectToServer();
+                consumer.Start();
+            }
+            Console.Read();
+        }
+
         [TestMethod]
         public void Close_Consumer_Test() { }
 

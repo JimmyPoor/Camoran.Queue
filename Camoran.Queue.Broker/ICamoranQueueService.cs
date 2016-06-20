@@ -18,9 +18,6 @@ namespace Camoran.Queue.Broker
         IList<MessageQueue> CreateTopicQueuesIfNotExists(string topic, int createQueueCount);
         int FindQueueIndex(int queueCount, int producerIndex);
         void StartQueues(IEnumerable<MessageQueue> topicQueues, Func<MessageQueue, bool> canInvoke, Action<QueueMessage> whenInvoke);
-       // void StartQueue(Action canInvoke,Action<QueueMessage> inovke );
-
-        // void StopQueue();
     }
 
 }

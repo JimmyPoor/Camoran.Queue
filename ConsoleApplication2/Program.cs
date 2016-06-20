@@ -12,6 +12,7 @@ namespace ConsoleApplication2
     {
         static void Main(string[] args)
         {
+          //  Thread.Sleep(4000);
             ProducerTest test = new ProducerTest();
             test.Start_Producer_Whole_Action_Mulit_Producers();
             //new ClientMixTest().Multi_Sender_Send_WhenMulit_Consumers();

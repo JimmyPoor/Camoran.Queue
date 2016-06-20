@@ -20,7 +20,7 @@ namespace Camoran.Queue.Client.Consumer
         private Action<ConsumerResponse> _consumeTask;
         IClient<ConsumerRequest, ConsumerResponse> _inner;
 
-        private readonly int _consumeSceduleInterval =100;
+        private readonly int _consumeSceduleInterval =30;
         private object lockobj = new object();
 
         public Camoran.Queue.Core.Message.QueueMessage CurrentQueueMessage { get; set; }
@@ -99,6 +99,7 @@ namespace Camoran.Queue.Client.Consumer
         }
         protected virtual ConsumerResponse WhenConsumerConnectFail(ConsumerRequest request)
         {
+            Console.WriteLine("can not connect to server: consumer Id:{0}",request.SenderId);
             // record events for fail to connect to server successfully
             return null;
         }
